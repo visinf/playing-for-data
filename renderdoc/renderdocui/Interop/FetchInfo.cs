@@ -245,6 +245,14 @@ namespace renderdoc
         public UInt64 byteSize;
     };
 
+    /* Added by Stephan Richter | BEGIN */
+    [StructLayout(LayoutKind.Sequential)]
+    public class FetchShader
+    {
+        public ResourceId ID;        
+    };
+    /* Added by Stephan Richter | END */
+
     [StructLayout(LayoutKind.Sequential)]
     public class FetchTexture
     {

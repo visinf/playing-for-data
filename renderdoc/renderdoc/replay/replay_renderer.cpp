@@ -38,8 +38,26 @@
 #include "jpeg-compressor/jpge.h"
 #include "stb/stb_image.h"
 #include "stb/stb_image_write.h"
-#include "tinyexr/tinyexr.h"
+
+/* Removed by Stephan Richter | BEGIN */
+//#include "tinyexr/tinyexr.h"
+/* Removed by Stephan Richter | END */
+
 #include "common/dds_readwrite.h"
+
+/* Added by Stephan Richter | BEGIN */
+#include <ImfOutputFile.h>
+#include <ImfInputFile.h>
+#include <ImfChannelList.h>
+#include <ImfStringAttribute.h>
+#include <ImfMatrixAttribute.h>
+#include <ImfArray.h>
+#include <ImfNamespace.h>
+
+#include "replay/MurmurHash3.h"
+namespace IMF = OPENEXR_IMF_NAMESPACE;
+
+/* Added by Stephan Richter | END */
 
 float ConvertComponent(ResourceFormat fmt, byte *data)
 {
@@ -190,6 +208,18 @@ bool ReplayRenderer::SetFrameEvent(uint32_t frameID, uint32_t eventID)
 	return SetFrameEvent(frameID, eventID, false);
 }
 
+/* Added by Stephan Richter | BEGIN */
+void ReplayRenderer::SetIDRenderingEvents(uint32_t frameID, uint32_t startEventID, uint32_t endEventID)
+{
+	m_pDevice->SetIDRenderingEvents(frameID, startEventID, endEventID);
+}
+
+void ReplayRenderer::SetIDRendering(bool active, ResourceId shaderID)
+{
+	m_pDevice->SetIDRendering(active, shaderID);
+}
+/* Added by Stephan Richter | END */
+
 bool ReplayRenderer::SetFrameEvent(uint32_t frameID, uint32_t eventID, bool force)
 {
 	if(m_FrameID != frameID || eventID != m_EventID || force)
@@ -318,6 +348,32 @@ bool ReplayRenderer::GetBuffers(rdctype::array<FetchBuffer> *out)
 
 	return false;
 }
+
+/* Added by Stephan Richter | BEGIN */
+bool ReplayRenderer::GetPixelShaders(rdctype::array<FetchShader> *out)
+{
+	if (m_Shaders.empty())
+	{
+		vector<ResourceId> ids = m_pDevice->GetPixelShaders();
+
+		m_Shaders.resize(ids.size());
+
+		for (size_t i = 0; i < ids.size(); i++)
+		{
+			m_Shaders[i] = FetchShader();
+			m_Shaders[i].ID = ids[i];
+		}			
+	}
+
+	if (out)
+	{
+		*out = m_Shaders;
+		return true;
+	}
+
+	return false;
+}
+/* Added by Stephan Richter | END */
 
 bool ReplayRenderer::GetTextures(rdctype::array<FetchTexture> *out)
 {
@@ -453,6 +509,17 @@ bool ReplayRenderer::GetTextureData(ResourceId tex, uint32_t arrayIdx, uint32_t 
 
 	return true;
 }
+
+/* Added by Stephan Richter | BEGIN */
+bool ReplayRenderer::GetShaderData(ResourceId buff, rdctype::array<byte> *data)
+{
+	if (data == NULL) return false;
+
+	*data = m_pDevice->GetShaderData(m_pDevice->GetLiveID(buff));
+
+	return true;
+}
+/* Added by Stephan Richter | END */
 
 bool ReplayRenderer::SaveTexture(const TextureSave &saveData, const char *path)
 {
@@ -627,6 +694,7 @@ bool ReplayRenderer::SaveTexture(const TextureSave &saveData, const char *path)
 		 td.format.specialFormat == eSpecial_ASTC)
 		 downcast = true;
 
+	/* Modified by Stephan Richter | BEGIN */
 	// for DDS don't downcast, for non-HDR always downcast if we're not already RGBA8 unorm
 	// for HDR&EXR we can convert from most regular types as well as 10.10.10.2 and 11.11.10
 	if((sd.destType != eFileType_DDS && sd.destType != eFileType_HDR && sd.destType != eFileType_EXR && 
@@ -635,7 +703,7 @@ bool ReplayRenderer::SaveTexture(const TextureSave &saveData, const char *path)
 		 downcast ||
 		 (sd.destType != eFileType_DDS && td.format.special &&
 			   td.format.specialFormat != eSpecial_R10G10B10A2 &&
-				 td.format.specialFormat != eSpecial_R11G11B10)
+				 td.format.specialFormat != eSpecial_R11G11B10 && td.format.specialFormat != eSpecial_D32S8)
 		)
 	{
 		downcast = true;
@@ -645,6 +713,7 @@ bool ReplayRenderer::SaveTexture(const TextureSave &saveData, const char *path)
 		td.format.special = false;
 		td.format.specialFormat = eSpecial_Unknown;
 	}
+	/* Modified by Stephan Richter | END */
 
 	uint32_t rowPitch = 0;
 	uint32_t slicePitch = 0;
@@ -689,7 +758,10 @@ bool ReplayRenderer::SaveTexture(const TextureSave &saveData, const char *path)
 				bytesPerPixel = 2;
 				break;
 			case eSpecial_D32S8:
-				bytesPerPixel = 5;
+				/* Modified by Stephan Richter | BEGIN */
+				/* Original value was 5. */
+				bytesPerPixel = 8;
+				/* Modified by Stephan Richter | END */
 				break;
 			case eSpecial_D16S8:
 			case eSpecial_YUV:
@@ -980,76 +1052,73 @@ bool ReplayRenderer::SaveTexture(const TextureSave &saveData, const char *path)
 		rowPitch = td.width * 2;
 	}
 
-	FILE *f = FileIO::fopen(path, "wb");
+	/* Modified by Stephan Richter | BEGIN */
 
-	if(!f)
+	if (sd.destType == eFileType_EXR)
 	{
-		success = false;
-	}
-	else
-	{
-		if(sd.destType == eFileType_DDS)
+		IMF::Header header(td.width, td.height);
+		IMF::FrameBuffer frameBuffer;
+
+		if (td.format.special && td.format.specialFormat == eSpecial_D32S8)
 		{
-			dds_data ddsData;
+			float    *rdata = new float[td.width*td.height];
+			uint32_t *gdata = new uint32_t[td.width*td.height];
+			
+			byte *srcData = subdata[0];
 
-			ddsData.width = td.width;
-			ddsData.height = td.height;
-			ddsData.depth = td.depth;
-			ddsData.format = td.format;
-			ddsData.mips = numMips;
-			ddsData.slices = numSlices/td.depth;
-			ddsData.subdata = &subdata[0];
-			ddsData.cubemap = td.cubemap && numSlices == 6;
+			for (uint32_t y = 0; y < td.height; y++)
+			{
+				for (uint32_t x = 0; x < td.width; x++)
+				{
+					float r    = *(float*)(srcData);
+					uint32_t g = (uint32_t)(*(srcData+4));
+			
+					rdata[y*td.width + x] = r;
+					gdata[y*td.width + x] = g;
 
-			success = write_dds_to_file(f, ddsData);
+					srcData += 8;
+				}
+			}
+
+			
+			header.channels().insert("D", IMF::Channel(IMF::FLOAT));
+			header.channels().insert("S", IMF::Channel(IMF::UINT));
+			
+			auto slice = IMF::Slice(IMF::FLOAT,			// type
+				(char *)rdata,		// base
+				sizeof(*rdata) * 1,		// xStride
+				sizeof(*rdata) * td.width);
+
+			frameBuffer.insert("D", slice);
+
+			frameBuffer.insert("S", IMF::Slice(IMF::UINT,			// type
+				(char *)gdata,		// base
+				sizeof(*gdata) * 1,		// xStride
+				sizeof(*gdata) * td.width));
+
+			IMF::OutputFile file(path, header);
+			file.setFrameBuffer(frameBuffer);
+			file.writePixels(td.height);
 		}
-		else if(sd.destType == eFileType_BMP)
+		else
 		{
-			int ret = stbi_write_bmp_to_file(f, td.width, td.height, numComps, subdata[0]);
-			success = (ret != 0);
-		}
-		else if(sd.destType == eFileType_PNG)
-		{
-			int ret = stbi_write_png_to_file(f, td.width, td.height, td.format.compCount, subdata[0], rowPitch);
-			success = (ret != 0);
-		}
-		else if(sd.destType == eFileType_TGA)
-		{
-			int ret = stbi_write_tga_to_file(f, td.width, td.height, td.format.compCount, subdata[0]);
-			success = (ret != 0);
-		}
-		else if(sd.destType == eFileType_JPG)
-		{
-			jpge::params p;
-			p.m_quality = sd.jpegQuality;
-
-			int len = td.width*td.height*td.format.compCount;
-
-			char *jpgdst = new char[len];
-
-			success = jpge::compress_image_to_jpeg_file_in_memory(jpgdst, len, td.width, td.height, numComps, subdata[0], p);
-
-			if(success)
-				fwrite(jpgdst, 1, len, f);
-
-			delete[] jpgdst;
-		}
-		else if(sd.destType == eFileType_HDR || sd.destType == eFileType_EXR)
-		{
-			float *fldata = new float[td.width*td.height*4];
+			float *rdata = new float[td.width*td.height];
+			float *gdata = new float[td.width*td.height];
+			float *bdata = new float[td.width*td.height];
+			float *adata = new float[td.width*td.height];
 
 			byte *srcData = subdata[0];
-			
-			for(uint32_t y=0; y < td.height; y++)
+
+			for (uint32_t y = 0; y < td.height; y++)
 			{
-				for(uint32_t x=0; x < td.width; x++)
+				for (uint32_t x = 0; x < td.width; x++)
 				{
 					float r = 0.0f;
 					float g = 0.0f;
 					float b = 0.0f;
 					float a = 1.0f;
 
-					if(td.format.special && td.format.specialFormat == eSpecial_R10G10B10A2)
+					if (td.format.special && td.format.specialFormat == eSpecial_R10G10B10A2)
 					{
 						uint32_t *u32 = (uint32_t *)srcData;
 
@@ -1062,7 +1131,7 @@ bool ReplayRenderer::SaveTexture(const TextureSave &saveData, const char *path)
 
 						srcData += 4;
 					}
-					else if(td.format.special && td.format.specialFormat == eSpecial_R11G11B10)
+					else if (td.format.special && td.format.specialFormat == eSpecial_R11G11B10)
 					{
 						uint32_t *u32 = (uint32_t *)srcData;
 
@@ -1077,76 +1146,825 @@ bool ReplayRenderer::SaveTexture(const TextureSave &saveData, const char *path)
 					}
 					else
 					{
-						if(td.format.compCount >= 1)
-							r = ConvertComponent(td.format, srcData + td.format.compByteWidth*0);
-						if(td.format.compCount >= 2)
-							g = ConvertComponent(td.format, srcData + td.format.compByteWidth*1);
-						if(td.format.compCount >= 3)
-							b = ConvertComponent(td.format, srcData + td.format.compByteWidth*2);
-						if(td.format.compCount >= 4)
-							a = ConvertComponent(td.format, srcData + td.format.compByteWidth*3);
+						if (td.format.compCount >= 1)
+							r = ConvertComponent(td.format, srcData + td.format.compByteWidth * 0);
+						if (td.format.compCount >= 2)
+							g = ConvertComponent(td.format, srcData + td.format.compByteWidth * 1);
+						if (td.format.compCount >= 3)
+							b = ConvertComponent(td.format, srcData + td.format.compByteWidth * 2);
+						if (td.format.compCount >= 4)
+							a = ConvertComponent(td.format, srcData + td.format.compByteWidth * 3);
 
 						srcData += td.format.compCount * td.format.compByteWidth;
 					}
 
-					// HDR can't represent negative values
-					if(sd.destType == eFileType_HDR)
-					{
-						r = RDCMAX(r, 0.0f);
-						g = RDCMAX(g, 0.0f);
-						b = RDCMAX(b, 0.0f);
-						a = RDCMAX(a, 0.0f);
-					}
-
-					if(sd.channelExtract == 0)
-					{
-						g = b = r; a = 1.0f;
-					}
-					if(sd.channelExtract == 1)
-					{
-						r = b = g; a = 1.0f;
-					}
-					if(sd.channelExtract == 2)
-					{
-						r = g = b; a = 1.0f;
-					}
-					if(sd.channelExtract == 3)
-					{
-						r = g = b = a; a = 1.0f;
-					}
-
-					fldata[(y*td.width + x) * 4 + 0] = r;
-					fldata[(y*td.width + x) * 4 + 1] = g;
-					fldata[(y*td.width + x) * 4 + 2] = b;
-					fldata[(y*td.width + x) * 4 + 3] = a;
+					rdata[y*td.width + x] = r;
+					gdata[y*td.width + x] = g;
+					bdata[y*td.width + x] = b;
+					adata[y*td.width + x] = a;
 				}
 			}
 
-			if(sd.destType == eFileType_HDR)
+			header.channels().insert("R", IMF::Channel(IMF::FLOAT));
+			header.channels().insert("G", IMF::Channel(IMF::FLOAT));
+			header.channels().insert("B", IMF::Channel(IMF::FLOAT));
+			header.channels().insert("A", IMF::Channel(IMF::FLOAT));
+
+			frameBuffer.insert("R", IMF::Slice(IMF::FLOAT,			// type
+				(char *)rdata,		// base
+				sizeof(*rdata) * 1,		// xStride
+				sizeof(*rdata) * td.width));
+
+			frameBuffer.insert("G", IMF::Slice(IMF::FLOAT,			// type
+				(char *)gdata,		// base
+				sizeof(*gdata) * 1,		// xStride
+				sizeof(*gdata) * td.width));
+
+			frameBuffer.insert("B", IMF::Slice(IMF::FLOAT,			// type
+				(char *)bdata,		// base
+				sizeof(*bdata) * 1,		// xStride
+				sizeof(*bdata) * td.width));
+
+			frameBuffer.insert("A", IMF::Slice(IMF::FLOAT,			// type
+				(char *)adata,		// base
+				sizeof(*adata) * 1,		// xStride
+				sizeof(*adata) * td.width));
+
+			IMF::OutputFile file(path, header);
+			file.setFrameBuffer(frameBuffer);
+			file.writePixels(td.height);
+		}
+
+		success = true;
+		/*const char *err = NULL;
+		int ret = SaveEXRFP(fldata, (int)td.width, (int)td.height, f, &err);
+		success = (ret == 0);
+		if (!success)
+		RDCERR("Error saving EXR file %d: '%s'", ret, err);	*/
+	}
+	else
+	{
+		FILE *f = FileIO::fopen(path, "wb");
+
+		if (!f)
+		{
+			success = false;
+		}
+		else
+		{
+			if (sd.destType == eFileType_DDS)
 			{
-				int ret = stbi_write_hdr_to_file(f, td.width, td.height, 4, fldata);
+				dds_data ddsData;
+
+				ddsData.width = td.width;
+				ddsData.height = td.height;
+				ddsData.depth = td.depth;
+				ddsData.format = td.format;
+				ddsData.mips = numMips;
+				ddsData.slices = numSlices / td.depth;
+				ddsData.subdata = &subdata[0];
+				ddsData.cubemap = td.cubemap && numSlices == 6;
+
+				success = write_dds_to_file(f, ddsData);
+			}
+			else if (sd.destType == eFileType_BMP)
+			{
+				int ret = stbi_write_bmp_to_file(f, td.width, td.height, numComps, subdata[0]);
 				success = (ret != 0);
 			}
-			else if(sd.destType == eFileType_EXR)
+			else if (sd.destType == eFileType_PNG)
 			{
+				int ret = stbi_write_png_to_file(f, td.width, td.height, td.format.compCount, subdata[0], rowPitch);
+				success = (ret != 0);
+			}
+			else if (sd.destType == eFileType_TGA)
+			{
+				int ret = stbi_write_tga_to_file(f, td.width, td.height, td.format.compCount, subdata[0]);
+				success = (ret != 0);
+			}
+			else if (sd.destType == eFileType_JPG)
+			{
+				jpge::params p;
+				p.m_quality = sd.jpegQuality;
+
+				int len = td.width*td.height*td.format.compCount;
+
+				char *jpgdst = new char[len];
+
+				success = jpge::compress_image_to_jpeg_file_in_memory(jpgdst, len, td.width, td.height, numComps, subdata[0], p);
+
+				if (success)
+					fwrite(jpgdst, 1, len, f);
+
+				delete[] jpgdst;
+			}
+			else if (sd.destType == eFileType_HDR || sd.destType == eFileType_EXR)
+			{
+				float *fldata = new float[td.width*td.height * 4];
+
+				byte *srcData = subdata[0];
+
+				for (uint32_t y = 0; y < td.height; y++)
+				{
+					for (uint32_t x = 0; x < td.width; x++)
+					{
+						float r = 0.0f;
+						float g = 0.0f;
+						float b = 0.0f;
+						float a = 1.0f;
+
+						if (td.format.special && td.format.specialFormat == eSpecial_R10G10B10A2)
+						{
+							uint32_t *u32 = (uint32_t *)srcData;
+
+							Vec4f vec = ConvertFromR10G10B10A2(*u32);
+
+							r = vec.x;
+							g = vec.y;
+							b = vec.z;
+							a = vec.w;
+
+							srcData += 4;
+						}
+						else if (td.format.special && td.format.specialFormat == eSpecial_R11G11B10)
+						{
+							uint32_t *u32 = (uint32_t *)srcData;
+
+							Vec3f vec = ConvertFromR11G11B10(*u32);
+
+							r = vec.x;
+							g = vec.y;
+							b = vec.z;
+							a = 1.0f;
+
+							srcData += 4;
+						}
+						else if (td.format.special && td.format.specialFormat == eSpecial_D32S8)
+						{							
+							r = *(float*)srcData;
+							g = float(*(uint8_t*)(srcData+4));
+							b = 0.0f;
+							a = 1.0f;
+
+							srcData += 8;
+						}
+						else
+						{
+							if (td.format.compCount >= 1)
+								r = ConvertComponent(td.format, srcData + td.format.compByteWidth * 0);
+							if (td.format.compCount >= 2)
+								g = ConvertComponent(td.format, srcData + td.format.compByteWidth * 1);
+							if (td.format.compCount >= 3)
+								b = ConvertComponent(td.format, srcData + td.format.compByteWidth * 2);
+							if (td.format.compCount >= 4)
+								a = ConvertComponent(td.format, srcData + td.format.compByteWidth * 3);
+
+							srcData += td.format.compCount * td.format.compByteWidth;
+						}
+
+						// HDR can't represent negative values
+						if (sd.destType == eFileType_HDR)
+						{
+							r = RDCMAX(r, 0.0f);
+							g = RDCMAX(g, 0.0f);
+							b = RDCMAX(b, 0.0f);
+							a = RDCMAX(a, 0.0f);
+						}
+
+						if (sd.channelExtract == 0)
+						{
+							g = b = r; a = 1.0f;
+						}
+						if (sd.channelExtract == 1)
+						{
+							r = b = g; a = 1.0f;
+						}
+						if (sd.channelExtract == 2)
+						{
+							r = g = b; a = 1.0f;
+						}
+						if (sd.channelExtract == 3)
+						{
+							r = g = b = a; a = 1.0f;
+						}
+
+						fldata[(y*td.width + x) * 4 + 0] = r;
+						fldata[(y*td.width + x) * 4 + 1] = g;
+						fldata[(y*td.width + x) * 4 + 2] = b;
+						fldata[(y*td.width + x) * 4 + 3] = a;
+					}
+				}
+
+				if (sd.destType == eFileType_HDR)
+				{
+					int ret = stbi_write_hdr_to_file(f, td.width, td.height, 4, fldata);
+					success = (ret != 0);
+				}
+				/*else if(sd.destType == eFileType_EXR)
+				{
 				const char *err = NULL;
 				int ret = SaveEXRFP(fldata, (int)td.width, (int)td.height, f, &err);
 				success = (ret == 0);
 				if(!success)
-					RDCERR("Error saving EXR file %d: '%s'", ret, err);
+				RDCERR("Error saving EXR file %d: '%s'", ret, err);
+				}*/
+
+				delete[] fldata;
 			}
 
-			delete[] fldata;
+			FileIO::fclose(f);
 		}
-
-		FileIO::fclose(f);
 	}
+	/* Modified by Stephan Richter | END */
 
 	for(size_t i=0; i < subdata.size(); i++)
 		delete[] subdata[i];
 
 	return success;
 }
+
+/* Added by Stephan Richter | BEGIN */
+/* modified version of SaveTexture */
+bool ReplayRenderer::HashTexture(const TextureSave &saveData, const char *path)
+{
+	TextureSave sd = saveData; // mutable copy
+	ResourceId liveid = m_pDevice->GetLiveID(sd.id);
+	FetchTexture td = m_pDevice->GetTexture(liveid);
+
+	bool success = false;
+
+	// clamp sample/mip/slice indices
+	if (td.msSamp == 1)
+	{
+		sd.sample.sampleIndex = 0;
+		sd.sample.mapToArray = false;
+	}
+	else
+	{
+		if (sd.sample.sampleIndex != ~0U)
+			sd.sample.sampleIndex = RDCCLAMP(sd.sample.sampleIndex, 0U, td.msSamp);
+	}
+
+	// don't support cube cruciform for non cubemaps, or
+	// cubemap arrays
+	if (!td.cubemap || td.arraysize != 6 || td.msSamp != 1)
+		sd.slice.cubeCruciform = false;
+
+	if (sd.mip != -1)
+		sd.mip = RDCCLAMP(sd.mip, 0, (int32_t)td.mips);
+	if (sd.slice.sliceIndex != -1)
+		sd.slice.sliceIndex = RDCCLAMP(sd.slice.sliceIndex, 0, int32_t(td.arraysize*td.depth));
+
+	if (td.arraysize*td.depth*td.msSamp == 1)
+	{
+		sd.slice.sliceIndex = 0;
+		sd.slice.slicesAsGrid = false;
+	}
+
+	// can't extract a channel that's not in the source texture
+	if (sd.channelExtract >= 0 && (uint32_t)sd.channelExtract >= td.format.compCount)
+		sd.channelExtract = -1;
+
+	sd.slice.sliceGridWidth = RDCMAX(sd.slice.sliceGridWidth, 1);
+
+	// store sample count so we know how many 'slices' is one real slice
+	// multisampled textures cannot have mips, subresource layout is same as would be for mips:
+	// [slice0 sample0], [slice0 sample1], [slice1 sample0], [slice1 sample1]
+	uint32_t sampleCount = td.msSamp;
+	bool multisampled = td.msSamp > 1;
+
+	bool resolveSamples = (sd.sample.sampleIndex == ~0U);
+
+	if (resolveSamples)
+	{
+		td.msSamp = 1;
+		sd.sample.mapToArray = false;
+		sd.sample.sampleIndex = 0;
+	}
+
+	// treat any multisampled texture as if it were an array
+	// of <sample count> dimension (on top of potential existing array
+	// dimension). GetTextureData() uses the same convention.
+	if (td.msSamp > 1)
+	{
+		td.arraysize *= td.msSamp;
+		td.msSamp = 1;
+	}
+
+	if (sd.destType != eFileType_DDS && sd.sample.mapToArray && !sd.slice.slicesAsGrid && sd.slice.sliceIndex == -1)
+	{
+		sd.sample.mapToArray = false;
+		sd.sample.sampleIndex = 0;
+	}
+
+	// only DDS supports writing multiple mips, fall back to mip 0 if 'all mips' was specified
+	if (sd.destType != eFileType_DDS && sd.mip == -1)
+		sd.mip = 0;
+
+	// only DDS supports writing multiple slices, fall back to slice 0 if 'all slices' was specified
+	if (sd.destType != eFileType_DDS && sd.slice.sliceIndex == -1 && !sd.slice.slicesAsGrid && !sd.slice.cubeCruciform)
+		sd.slice.sliceIndex = 0;
+
+	// fetch source data subresources (typically only one, possibly more
+	// if we're writing to DDS (so writing multiple mips/slices) or resolving
+	// down a multisampled texture for writing as a single 'image' elsewhere)
+	uint32_t sliceOffset = 0;
+	uint32_t sliceStride = 1;
+	uint32_t numSlices = td.arraysize*td.depth;
+
+	uint32_t mipOffset = 0;
+	uint32_t numMips = td.mips;
+
+	bool singleSlice = (sd.slice.sliceIndex != -1);
+
+	// set which slices/mips we need
+	if (multisampled)
+	{
+		bool singleSample = !sd.sample.mapToArray;
+
+		// multisampled images have no mips
+		mipOffset = 0;
+		numMips = 1;
+
+		if (singleSlice)
+		{
+			if (singleSample)
+			{
+				// we want a specific sample in a specific real slice
+				sliceOffset = sd.slice.sliceIndex * sampleCount + sd.sample.sampleIndex;
+				numSlices = 1;
+			}
+			else
+			{
+				// we want all the samples (now mapped to slices) in a specific real slice
+				sliceOffset = sd.slice.sliceIndex;
+				numSlices = sampleCount;
+			}
+		}
+		else
+		{
+			if (singleSample)
+			{
+				// we want one sample in every slice, so we have to set the stride to sampleCount
+				// to skip every other sample (mapped to slices), starting from the sample we want
+				// in the first real slice
+				sliceOffset = sd.sample.sampleIndex;
+				sliceStride = sampleCount;
+				numSlices = RDCMAX(1U, td.arraysize / sampleCount);
+			}
+			else
+			{
+				// we want all slices, all samples
+				sliceOffset = 0;
+				numSlices = td.arraysize;
+			}
+		}
+	}
+	else
+	{
+		if (singleSlice)
+		{
+			numSlices = 1;
+			sliceOffset = sd.slice.sliceIndex;
+		}
+		// otherwise take all slices, as by default
+
+		if (sd.mip != -1)
+		{
+			mipOffset = sd.mip;
+			numMips = 1;
+		}
+		// otherwise take all mips, as by default
+	}
+
+	vector<byte *> subdata;
+
+	bool downcast = false;
+
+	// don't support slice mappings for DDS - it supports slices natively
+	if (sd.destType == eFileType_DDS)
+	{
+		sd.slice.cubeCruciform = false;
+		sd.slice.slicesAsGrid = false;
+	}
+
+	// force downcast to be able to do grid mappings
+	if (sd.slice.cubeCruciform || sd.slice.slicesAsGrid)
+		downcast = true;
+
+	// we don't support any file formats that handle these block compression formats
+	if (td.format.specialFormat == eSpecial_ETC2 ||
+		td.format.specialFormat == eSpecial_EAC ||
+		td.format.specialFormat == eSpecial_ASTC)
+		downcast = true;
+
+	// for DDS don't downcast, for non-HDR always downcast if we're not already RGBA8 unorm
+	// for HDR&EXR we can convert from most regular types as well as 10.10.10.2 and 11.11.10
+	if ((sd.destType != eFileType_DDS && sd.destType != eFileType_HDR && sd.destType != eFileType_EXR &&
+		(td.format.compByteWidth != 1 || td.format.compType != eCompType_UNorm)
+		) ||
+		downcast ||
+		(sd.destType != eFileType_DDS && td.format.special &&
+		td.format.specialFormat != eSpecial_R10G10B10A2 &&
+		td.format.specialFormat != eSpecial_R11G11B10 && td.format.specialFormat != eSpecial_D32S8)
+		)
+	{
+		downcast = true;
+		td.format.compByteWidth = 1;
+		td.format.compCount = 4;
+		td.format.compType = eCompType_UNorm;
+		td.format.special = false;
+		td.format.specialFormat = eSpecial_Unknown;
+	}
+
+	uint32_t rowPitch = 0;
+	uint32_t slicePitch = 0;
+
+	bool blockformat = false;
+	int blockSize = 0;
+	uint32_t bytesPerPixel = 1;
+
+	td.width = RDCMAX(1U, td.width >> mipOffset);
+	td.height = RDCMAX(1U, td.height >> mipOffset);
+	td.depth = RDCMAX(1U, td.depth >> mipOffset);
+
+	if (td.format.specialFormat == eSpecial_BC1 ||
+		td.format.specialFormat == eSpecial_BC2 ||
+		td.format.specialFormat == eSpecial_BC3 ||
+		td.format.specialFormat == eSpecial_BC4 ||
+		td.format.specialFormat == eSpecial_BC5 ||
+		td.format.specialFormat == eSpecial_BC6 ||
+		td.format.specialFormat == eSpecial_BC7)
+	{
+		blockSize = (td.format.specialFormat == eSpecial_BC1 || td.format.specialFormat == eSpecial_BC4) ? 8 : 16;
+		rowPitch = RDCMAX(1U, ((td.width + 3) / 4)) * blockSize;
+		slicePitch = rowPitch * RDCMAX(1U, td.height / 4);
+		blockformat = true;
+	}
+	else
+	{
+		switch (td.format.specialFormat)
+		{
+		case eSpecial_S8:
+			bytesPerPixel = 1;
+			break;
+		case eSpecial_R10G10B10A2:
+		case eSpecial_R9G9B9E5:
+		case eSpecial_R11G11B10:
+		case eSpecial_D24S8:
+			bytesPerPixel = 4;
+			break;
+		case eSpecial_R5G6B5:
+		case eSpecial_R5G5B5A1:
+		case eSpecial_R4G4B4A4:
+			bytesPerPixel = 2;
+			break;
+		case eSpecial_D32S8:
+			bytesPerPixel = 8;
+			break;
+		case eSpecial_D16S8:
+		case eSpecial_YUV:
+			RDCERR("Unsupported file format %u", td.format.specialFormat);
+			return false;
+		default:
+			bytesPerPixel = td.format.compCount*td.format.compByteWidth;
+		}
+
+		rowPitch = td.width * bytesPerPixel;
+		slicePitch = rowPitch * td.height;
+	}
+
+	// loop over fetching subresources
+	for (uint32_t s = 0; s < numSlices; s++)
+	{
+		uint32_t slice = s*sliceStride + sliceOffset;
+
+		for (uint32_t m = 0; m < numMips; m++)
+		{
+			uint32_t mip = m + mipOffset;
+
+			size_t datasize = 0;
+			byte *bytes = m_pDevice->GetTextureData(liveid, slice, mip, resolveSamples, downcast, sd.comp.blackPoint, sd.comp.whitePoint, datasize);
+
+			if (bytes == NULL)
+			{
+				RDCERR("Couldn't get bytes for mip %u, slice %u", mip, slice);
+
+				for (size_t i = 0; i < subdata.size(); i++)
+					delete[] subdata[i];
+
+				return false;
+			}
+
+			if (td.depth == 1)
+			{
+				subdata.push_back(bytes);
+				continue;
+			}
+
+			uint32_t mipSlicePitch = slicePitch;
+
+			uint32_t w = RDCMAX(1U, td.width >> m);
+			uint32_t h = RDCMAX(1U, td.height >> m);
+			uint32_t d = RDCMAX(1U, td.depth >> m);
+
+			if (blockformat)
+			{
+				mipSlicePitch = RDCMAX(1U, ((w + 3) / 4)) * blockSize * RDCMAX(1U, h / 4);
+			}
+			else
+			{
+				mipSlicePitch = w * bytesPerPixel * h;
+			}
+
+			// we don't support slice ranges, only all-or-nothing
+			// we're also not dealing with multisampled slices if
+			// depth > 1. So if we only want one slice out of a 3D texture
+			// then make sure we get it
+			if (numSlices == 1)
+			{
+				byte *depthslice = new byte[mipSlicePitch];
+				byte *b = bytes + mipSlicePitch*sliceOffset;
+				memcpy(depthslice, b, slicePitch);
+				subdata.push_back(depthslice);
+
+				delete[] bytes;
+				continue;
+			}
+
+			s += (d - 1);
+
+			byte *b = bytes;
+
+			// add each depth slice as a separate subdata
+			for (uint32_t di = 0; di < d; di++)
+			{
+				byte *depthslice = new byte[mipSlicePitch];
+
+				memcpy(depthslice, b, mipSlicePitch);
+
+				subdata.push_back(depthslice);
+
+				b += mipSlicePitch;
+			}
+
+			delete[] bytes;
+		}
+	}
+
+	// should have been handled above, but verify incoming data is RGBA8
+	if (sd.slice.slicesAsGrid && td.format.compByteWidth == 1 && td.format.compCount == 4)
+	{
+		uint32_t sliceWidth = td.width;
+		uint32_t sliceHeight = td.height;
+
+		uint32_t sliceGridHeight = (td.arraysize*td.depth) / sd.slice.sliceGridWidth;
+		if ((td.arraysize*td.depth) % sd.slice.sliceGridWidth != 0)
+			sliceGridHeight++;
+
+		td.width *= sd.slice.sliceGridWidth;
+		td.height *= sliceGridHeight;
+
+		byte *combinedData = new byte[td.width*td.height*td.format.compCount];
+
+		memset(combinedData, 0, td.width*td.height*td.format.compCount);
+
+		for (size_t i = 0; i < subdata.size(); i++)
+		{
+			uint32_t gridx = (uint32_t)i % sd.slice.sliceGridWidth;
+			uint32_t gridy = (uint32_t)i / sd.slice.sliceGridWidth;
+
+			uint32_t yoffs = gridy*sliceHeight;
+			uint32_t xoffs = gridx*sliceWidth;
+
+			for (uint32_t y = 0; y < sliceHeight; y++)
+			{
+				for (uint32_t x = 0; x < sliceWidth; x++)
+				{
+					uint32_t *srcpix = (uint32_t *)&subdata[i][(y * sliceWidth + x) * 4 + 0];
+					uint32_t *dstpix = (uint32_t *)&combinedData[((y + yoffs) * td.width + x + xoffs) * 4 + 0];
+
+					*dstpix = *srcpix;
+				}
+			}
+
+			delete[] subdata[i];
+		}
+
+		subdata.resize(1);
+		subdata[0] = combinedData;
+		rowPitch = td.width * 4;
+	}
+
+	// should have been handled above, but verify incoming data is RGBA8 and 6 slices
+	if (sd.slice.cubeCruciform && td.format.compByteWidth == 1 && td.format.compCount == 4 && subdata.size() == 6)
+	{
+		uint32_t sliceWidth = td.width;
+		uint32_t sliceHeight = td.height;
+
+		td.width *= 4;
+		td.height *= 3;
+
+		byte *combinedData = new byte[td.width*td.height*td.format.compCount];
+
+		memset(combinedData, 0, td.width*td.height*td.format.compCount);
+
+		/*
+		Y X=0   1   2   3
+		=     +---+
+		0     |+y |
+		|[2]|
+		+---+---+---+---+
+		1 |-x |+z |+x |-z |
+		|[1]|[4]|[0]|[5]|
+		+---+---+---+---+
+		2     |-y |
+		|[3]|
+		+---+
+
+		*/
+
+		uint32_t gridx[6] = { 2, 0, 1, 1, 1, 3 };
+		uint32_t gridy[6] = { 1, 1, 0, 2, 1, 1 };
+
+		for (size_t i = 0; i < subdata.size(); i++)
+		{
+			uint32_t yoffs = gridy[i] * sliceHeight;
+			uint32_t xoffs = gridx[i] * sliceWidth;
+
+			for (uint32_t y = 0; y < sliceHeight; y++)
+			{
+				for (uint32_t x = 0; x < sliceWidth; x++)
+				{
+					uint32_t *srcpix = (uint32_t *)&subdata[i][(y * sliceWidth + x) * 4 + 0];
+					uint32_t *dstpix = (uint32_t *)&combinedData[((y + yoffs) * td.width + x + xoffs) * 4 + 0];
+
+					*dstpix = *srcpix;
+				}
+			}
+
+			delete[] subdata[i];
+		}
+
+		subdata.resize(1);
+		subdata[0] = combinedData;
+		rowPitch = td.width * 4;
+	}
+
+	int numComps = td.format.compCount;
+
+	// if we want a grayscale image of one channel, splat it across all channels
+	// and set alpha to full
+	if (sd.channelExtract >= 0 && td.format.compByteWidth == 1 && (uint32_t)sd.channelExtract < td.format.compCount)
+	{
+		for (uint32_t y = 0; y < td.height; y++)
+		{
+			for (uint32_t x = 0; x < td.width; x++)
+			{
+				subdata[0][(y * td.width + x) * 4 + 0] = subdata[0][(y * td.width + x) * 4 + sd.channelExtract];
+				if (td.format.compCount >= 2)
+					subdata[0][(y * td.width + x) * 4 + 1] = subdata[0][(y * td.width + x) * 4 + sd.channelExtract];
+				if (td.format.compCount >= 3)
+					subdata[0][(y * td.width + x) * 4 + 2] = subdata[0][(y * td.width + x) * 4 + sd.channelExtract];
+				if (td.format.compCount >= 4)
+					subdata[0][(y * td.width + x) * 4 + 3] = 255;
+			}
+		}
+	}
+
+	// handle formats that don't support alpha
+	if (numComps == 4 && (sd.destType == eFileType_BMP || sd.destType == eFileType_JPG))
+	{
+		byte *nonalpha = new byte[td.width*td.height * 3];
+
+		for (uint32_t y = 0; y < td.height; y++)
+		{
+			for (uint32_t x = 0; x < td.width; x++)
+			{
+				byte r = subdata[0][(y * td.width + x) * 4 + 0];
+				byte g = subdata[0][(y * td.width + x) * 4 + 1];
+				byte b = subdata[0][(y * td.width + x) * 4 + 2];
+				byte a = subdata[0][(y * td.width + x) * 4 + 3];
+
+				if (sd.alpha != eAlphaMap_Discard)
+				{
+					FloatVector col = sd.alphaCol;
+					if (sd.alpha == eAlphaMap_BlendToCheckerboard)
+					{
+						bool lightSquare = ((x / 64) % 2) == ((y / 64) % 2);
+						col = lightSquare ? sd.alphaCol : sd.alphaColSecondary;
+					}
+
+					col.x = powf(col.x, 1.0f / 2.2f);
+					col.y = powf(col.y, 1.0f / 2.2f);
+					col.z = powf(col.z, 1.0f / 2.2f);
+
+					FloatVector pixel = FloatVector(float(r) / 255.0f, float(g) / 255.0f, float(b) / 255.0f, float(a) / 255.0f);
+
+					pixel.x = pixel.x * pixel.w + col.x * (1.0f - pixel.w);
+					pixel.y = pixel.y * pixel.w + col.y * (1.0f - pixel.w);
+					pixel.z = pixel.z * pixel.w + col.z * (1.0f - pixel.w);
+
+					r = byte(pixel.x * 255.0f);
+					g = byte(pixel.y * 255.0f);
+					b = byte(pixel.z * 255.0f);
+				}
+
+				nonalpha[(y * td.width + x) * 3 + 0] = r;
+				nonalpha[(y * td.width + x) * 3 + 1] = g;
+				nonalpha[(y * td.width + x) * 3 + 2] = b;
+			}
+		}
+
+		delete[] subdata[0];
+
+		subdata[0] = nonalpha;
+
+		numComps = 3;
+		rowPitch = td.width * 3;
+	}
+
+	// assume that (R,G,0) is better mapping than (Y,A) for 2 component data
+	if (numComps == 2 && (sd.destType == eFileType_BMP || sd.destType == eFileType_JPG ||
+		sd.destType == eFileType_PNG || sd.destType == eFileType_TGA))
+	{
+		byte *rg0 = new byte[td.width*td.height * 3];
+
+		for (uint32_t y = 0; y < td.height; y++)
+		{
+			for (uint32_t x = 0; x < td.width; x++)
+			{
+				byte r = subdata[0][(y * td.width + x) * 2 + 0];
+				byte g = subdata[0][(y * td.width + x) * 2 + 1];
+
+				rg0[(y * td.width + x) * 3 + 0] = r;
+				rg0[(y * td.width + x) * 3 + 1] = g;
+				rg0[(y * td.width + x) * 3 + 2] = 0;
+			}
+		}
+
+		delete[] subdata[0];
+
+		subdata[0] = rg0;
+
+		numComps = 3;
+		rowPitch = td.width * 2;
+	}
+
+	int stride = 0;
+	if (td.format.special && td.format.specialFormat == eSpecial_R10G10B10A2)
+		stride = 4;
+	else if (td.format.special && td.format.specialFormat == eSpecial_R11G11B10)
+		stride = 4;
+	else
+	{
+		stride = td.format.compCount * td.format.compByteWidth;
+	}	
+		
+	int len = td.height * td.width * stride;
+	uint64_t bigHash[2];	
+	MurmurHash3_x64_128(subdata[0], len, 0, bigHash);
+
+	FILE* fid = fopen(path, "a");
+	fprintf(fid, "%I64d,%.16I64x.%.16I64x\n", sd.id, bigHash[0], bigHash[1]);
+	fclose(fid);
+		
+	success = true;
+	
+	for (size_t i = 0; i < subdata.size(); i++)
+		delete[] subdata[i];
+
+	return success;
+}
+
+bool ReplayRenderer::HashBufferData(ResourceId buffer, const char *path)
+{
+	rdctype::array<byte> data = m_pDevice->GetBufferData(m_pDevice->GetLiveID(buffer), 0, 0);
+	
+	uint64_t bigHash[2];
+	MurmurHash3_x64_128(data.elems, data.count, 0, bigHash);
+
+	FILE* fid = fopen(path, "a");
+	fprintf(fid, "%I64d,%.16I64x.%.16I64x\n", buffer, bigHash[0], bigHash[1]);
+	fclose(fid);
+
+	return true;
+}
+
+bool ReplayRenderer::HashShader(ResourceId buffer, const char *path)
+{
+	rdctype::array<byte> data = m_pDevice->GetShaderData(buffer);
+	
+	uint64_t bigHash[2];
+	MurmurHash3_x64_128(data.elems, data.count, 0, bigHash);
+
+	FILE* fid = fopen(path, "a");
+	fprintf(fid, "%I64d,%.16I64x.%.16I64x\n", m_pDevice->GetOriginalID(buffer), bigHash[0], bigHash[1]);
+	fclose(fid);
+
+	return true;
+}
+/* Added by Stephan Richter | END */
 
 bool ReplayRenderer::PixelHistory(ResourceId target, uint32_t x, uint32_t y, uint32_t slice, uint32_t mip, uint32_t sampleIdx, rdctype::array<PixelModification> *history)
 {
@@ -1584,6 +2402,10 @@ extern "C" RENDERDOC_API bool32 RENDERDOC_CC ReplayRenderer_SetContextFilter(Rep
 { return rend->SetContextFilter(id, firstDefEv, lastDefEv); }
 extern "C" RENDERDOC_API bool32 RENDERDOC_CC ReplayRenderer_SetFrameEvent(ReplayRenderer *rend, uint32_t frameID, uint32_t eventID)
 { return rend->SetFrameEvent(frameID, eventID); }
+extern "C" RENDERDOC_API void RENDERDOC_CC ReplayRenderer_SetIDRenderingEvents(ReplayRenderer *rend, uint32_t frameID, uint32_t startEventID, uint32_t endEventID)
+{ rend->SetIDRenderingEvents(frameID, startEventID, endEventID); }
+extern "C" RENDERDOC_API void RENDERDOC_CC ReplayRenderer_SetIDRendering(ReplayRenderer *rend, bool32 active, ResourceId shaderID)
+{ rend->SetIDRendering(active, shaderID); }
 extern "C" RENDERDOC_API bool32 RENDERDOC_CC ReplayRenderer_GetD3D11PipelineState(ReplayRenderer *rend, D3D11PipelineState *state)
 { return rend->GetD3D11PipelineState(state); }
 extern "C" RENDERDOC_API bool32 RENDERDOC_CC ReplayRenderer_GetGLPipelineState(ReplayRenderer *rend, GLPipelineState *state)
@@ -1625,6 +2447,10 @@ extern "C" RENDERDOC_API bool32 RENDERDOC_CC ReplayRenderer_GetTextures(ReplayRe
 { return rend->GetTextures(texs); }
 extern "C" RENDERDOC_API bool32 RENDERDOC_CC ReplayRenderer_GetBuffers(ReplayRenderer *rend, rdctype::array<FetchBuffer> *bufs)
 { return rend->GetBuffers(bufs); }
+extern "C" RENDERDOC_API bool32 RENDERDOC_CC ReplayRenderer_GetPixelShaders(ReplayRenderer *rend, rdctype::array<FetchShader> *bufs)
+{
+	return rend->GetPixelShaders(bufs);
+}
 extern "C" RENDERDOC_API bool32 RENDERDOC_CC ReplayRenderer_GetResolve(ReplayRenderer *rend, uint64_t *callstack, uint32_t callstackLen, rdctype::array<rdctype::str> *trace)
 { return rend->GetResolve(callstack, callstackLen, trace); }
 extern "C" RENDERDOC_API ShaderReflection* RENDERDOC_CC ReplayRenderer_GetShaderDetails(ReplayRenderer *rend, ResourceId shader)
@@ -1649,6 +2475,21 @@ extern "C" RENDERDOC_API bool32 RENDERDOC_CC ReplayRenderer_GetCBufferVariableCo
 
 extern "C" RENDERDOC_API bool32 RENDERDOC_CC ReplayRenderer_SaveTexture(ReplayRenderer *rend, const TextureSave &saveData, const char *path)
 { return rend->SaveTexture(saveData, path); }
+
+/* Added by Stephan Richter | BEGIN */
+extern "C" RENDERDOC_API bool32 RENDERDOC_CC ReplayRenderer_HashTexture(ReplayRenderer *rend, const TextureSave &saveData, const char *path)
+{
+	return rend->HashTexture(saveData, path);
+}
+extern "C" RENDERDOC_API bool32 RENDERDOC_CC ReplayRenderer_HashBufferData(ReplayRenderer *rend, ResourceId buff, const char *path)
+{
+	return rend->HashBufferData(buff, path);
+}
+extern "C" RENDERDOC_API bool32 RENDERDOC_CC ReplayRenderer_HashShader(ReplayRenderer *rend, ResourceId buff, const char *path)
+{
+	return rend->HashShader(buff, path);
+}
+/* Added by Stephan Richter | END */
 
 extern "C" RENDERDOC_API bool32 RENDERDOC_CC ReplayRenderer_GetPostVSData(ReplayRenderer *rend, uint32_t instID, MeshDataStage stage, MeshFormat *data)
 { return rend->GetPostVSData(instID, stage, data); }

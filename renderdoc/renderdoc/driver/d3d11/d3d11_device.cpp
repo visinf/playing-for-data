@@ -2245,6 +2245,18 @@ void WrappedID3D11Device::SetContextFilter(ResourceId id, uint32_t firstDefEv, u
 	m_LastDefEv = lastDefEv;
 }
 
+/* Added by Stephan Richter | BEGIN */
+void WrappedID3D11Device::SetIDRenderEvents(uint32_t frameID, uint32_t startEventID, uint32_t endEventID)
+{
+	m_pImmediateContext->SetIDRenderEvents(frameID, startEventID, endEventID);
+}
+
+void WrappedID3D11Device::SetIDRendering(bool active, ResourceId shaderID)
+{
+	m_pImmediateContext->SetIDRendering(active, shaderID);
+}
+/* Added by Stephan Richter | END */
+
 void WrappedID3D11Device::ReplayLog(uint32_t frameID, uint32_t startEventID, uint32_t endEventID, ReplayLogType replayType)
 {
 	RDCASSERT(frameID < (uint32_t)m_FrameRecord.size());

@@ -53,6 +53,7 @@ class D3D11Replay : public IReplayDriver
 		
 		vector<DebugMessage> GetDebugMessages();
 
+		vector<ResourceId> GetPixelShaders();
 		ShaderReflection *GetShader(ResourceId id);
 		
 		vector<EventUsage> GetUsage(ResourceId id);
@@ -83,6 +84,7 @@ class D3D11Replay : public IReplayDriver
 		void InitPostVSBuffers(uint32_t frameID, uint32_t eventID);
 
 		ResourceId GetLiveID(ResourceId id);
+		ResourceId GetOriginalID(ResourceId id);
 		
 		bool GetMinMax(ResourceId texid, uint32_t sliceFace, uint32_t mip, uint32_t sample, float *minval, float *maxval);
 		bool GetHistogram(ResourceId texid, uint32_t sliceFace, uint32_t mip, uint32_t sample, float minval, float maxval, bool channels[4], vector<uint32_t> &histogram);
@@ -92,6 +94,10 @@ class D3D11Replay : public IReplayDriver
 		vector<byte> GetBufferData(ResourceId buff, uint32_t offset, uint32_t len);
 		byte *GetTextureData(ResourceId tex, uint32_t arrayIdx, uint32_t mip, bool resolve, bool forceRGBA8unorm, float blackPoint, float whitePoint, size_t &dataSize);
 		
+		/* Added by Stephan Richter | BEGIN */
+		vector<byte> GetShaderData(ResourceId buff);
+		/* Added by Stephan Richter | END */
+
 		void BuildTargetShader(string source, string entry, const uint32_t compileFlags, ShaderStageType type, ResourceId *id, string *errors);
 		void ReplaceResource(ResourceId from, ResourceId to);
 		void RemoveReplacement(ResourceId id);
@@ -135,11 +141,24 @@ class D3D11Replay : public IReplayDriver
 		void InitCallstackResolver();
 		bool HasCallstacks();
 		Callstack::StackResolver *GetCallstackResolver();
+
+		/* Added by Stephan Richter | BEGIN */
+		/* added methods for rendering ids */
+		void SetIDRenderingEvents(uint32_t frameID, uint32_t startEventID, uint32_t endEventID);
+		void SetIDRendering(bool active, ResourceId shaderId);
+		/* Added by Stephan Richter | END */
+
 	private:
 		D3D11PipelineState MakePipelineState();
 
 		bool m_WARP;
 		bool m_Proxy;
+
+		/* Added by Stephan Richter | BEGIN */
+		bool m_renderID;
+		uint32_t m_startID;
+		uint32_t m_endID;
+		/* Added by Stephan Richter | END */
 
 		vector<ID3D11Resource*> m_ProxyResources;
 

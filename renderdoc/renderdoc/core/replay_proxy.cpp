@@ -1309,6 +1309,27 @@ vector<ResourceId> ProxySerialiser::GetBuffers()
 	return ret;
 }
 
+/* Added by Stephan Richter | BEGIN */
+vector<ResourceId> ProxySerialiser::GetPixelShaders()
+{
+	vector<ResourceId> ret;
+
+	if (m_ReplayHost)
+	{
+		ret = m_Remote->GetPixelShaders();
+	}
+	else
+	{
+		if (!SendReplayCommand(eCommand_GetShaders))
+			return ret;
+	}
+
+	m_FromReplaySerialiser->Serialise("", ret);
+
+	return ret;
+}
+/* Added by Stephan Richter | END */
+
 FetchBuffer ProxySerialiser::GetBuffer(ResourceId id)
 {
 	FetchBuffer ret;
@@ -1487,6 +1508,33 @@ ResourceId ProxySerialiser::GetLiveID(ResourceId id)
 	return ret;
 }
 
+/* Added by Stephan Richter | BEGIN */
+ResourceId ProxySerialiser::GetOriginalID(ResourceId id)
+{	
+	ResourceId ret;
+
+	RDCASSERT(m_ReplayHost || m_ToReplaySerialiser->GetSize() == 0);
+
+	m_ToReplaySerialiser->Serialise("", id);
+
+	if (m_ReplayHost)
+	{
+		ret = m_Remote->GetOriginalID(id);
+	}
+	else
+	{
+		if (!SendReplayCommand(eCommand_GetOriginalID))
+			return ret;
+	}
+
+	RDCASSERT(!m_ReplayHost || m_FromReplaySerialiser->GetSize() == 0);
+
+	m_FromReplaySerialiser->Serialise("", ret);
+	
+	return ret;
+}
+/* Added by Stephan Richter | END */
+
 vector<CounterResult> ProxySerialiser::FetchCounters(uint32_t frameID, uint32_t minEventID, uint32_t maxEventID, const vector<uint32_t> &counters)
 {
 	vector<CounterResult> ret;
@@ -1602,6 +1650,36 @@ vector<byte> ProxySerialiser::GetBufferData(ResourceId buff, uint32_t offset, ui
 
 	return ret;
 }
+
+/* Added by Stephan Richter | BEGIN */
+vector<byte> ProxySerialiser::GetShaderData(ResourceId buff)
+{
+	vector<byte> ret;
+
+	m_ToReplaySerialiser->Serialise("", buff);	
+
+	if (m_ReplayHost)
+	{
+		ret = m_Remote->GetShaderData(buff);
+
+		size_t sz = ret.size();
+		m_FromReplaySerialiser->Serialise("", sz);
+		m_FromReplaySerialiser->RawWriteBytes(&ret[0], sz);
+	}
+	else
+	{
+		if (!SendReplayCommand(eCommand_GetBufferData))
+			return ret;
+
+		size_t sz = 0;
+		m_FromReplaySerialiser->Serialise("", sz);
+		ret.resize(sz);
+		memcpy(&ret[0], m_FromReplaySerialiser->RawReadBytes(sz), sz);
+	}
+
+	return ret;
+}
+/* Added by Stephan Richter | END */
 
 byte *ProxySerialiser::GetTextureData(ResourceId tex, uint32_t arrayIdx, uint32_t mip, bool resolve, bool forceRGBA8unorm,
                                       float blackPoint, float whitePoint, size_t &dataSize)

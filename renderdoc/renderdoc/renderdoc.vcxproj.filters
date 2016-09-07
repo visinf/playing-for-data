@@ -222,6 +222,9 @@
     <ClInclude Include="api\replay\capture_options.h">
       <Filter>API\Replay</Filter>
     </ClInclude>
+    <ClInclude Include="replay\MurmurHash3.h">
+      <Filter>Replay</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="maths\camera.cpp">
@@ -351,6 +354,9 @@
       <Filter>API\In-App</Filter>
     </ClCompile>
     <ClCompile Include="replay\capture_options.cpp">
+      <Filter>Replay</Filter>
+    </ClCompile>
+    <ClCompile Include="replay\MurmurHash3.cpp">
       <Filter>Replay</Filter>
     </ClCompile>
   </ItemGroup>

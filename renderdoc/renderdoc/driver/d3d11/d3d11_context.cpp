@@ -79,9 +79,11 @@ HRESULT STDMETHODCALLTYPE WrappedID3DUserDefinedAnnotation::QueryInterface(REFII
 extern uint32_t NullCBOffsets[D3D11_COMMONSHADER_CONSTANT_BUFFER_API_SLOT_COUNT];
 extern uint32_t NullCBCounts[D3D11_COMMONSHADER_CONSTANT_BUFFER_API_SLOT_COUNT];
 
+/* Modified by Stephan Richter | BEGIN */
 WrappedID3D11DeviceContext::WrappedID3D11DeviceContext(WrappedID3D11Device* realDevice, ID3D11DeviceContext* context,
 														Serialiser *ser, Serialiser *debugser)
-	: RefCounter(context), m_pDevice(realDevice), m_pRealContext(context)
+														: RefCounter(context), m_pDevice(realDevice), m_pRealContext(context), m_DoRenderID(false), m_IDBuffer(NULL), m_StartEventID(0), m_EndEventID(0), m_CurMeshID(0), m_CurShaderID(0), m_CurTextureID(0)
+/* Modified by Stephan Richter | END */
 {
 	if(RenderDoc::Inst().GetCrashHandler())
 		RenderDoc::Inst().GetCrashHandler()->RegisterMemoryRegion(this, sizeof(WrappedID3D11DeviceContext));

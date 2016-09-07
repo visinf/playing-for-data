@@ -409,6 +409,20 @@ FetchBuffer D3D11Replay::GetBuffer(ResourceId id)
 	return ret;
 }
 
+/* Added by Stephan Richter | BEGIN */
+vector<ResourceId> D3D11Replay::GetPixelShaders()
+{
+	vector<ResourceId> ret;
+
+	ret.reserve(WrappedShader::m_ShaderList.size());
+
+	for (auto it = WrappedShader::m_ShaderList.begin(); it != WrappedShader::m_ShaderList.end(); ++it)
+		ret.push_back(it->first);
+
+	return ret;
+}
+/* Added by Stephan Richter | END */
+
 vector<ResourceId> D3D11Replay::GetTextures()
 {
 	vector<ResourceId> ret;
@@ -1203,6 +1217,18 @@ void D3D11Replay::SetContextFilter(ResourceId id, uint32_t firstDefEv, uint32_t 
 	m_pDevice->SetContextFilter(id, firstDefEv, lastDefEv);
 }
 
+/* Added by Stephan Richter | BEGIN */
+void D3D11Replay::SetIDRendering(bool active, ResourceId shaderID)
+{
+	m_pDevice->SetIDRendering(active, shaderID);
+}
+
+void D3D11Replay::SetIDRenderingEvents(uint32_t frameID, uint32_t startEventID, uint32_t endEventID)
+{
+	m_pDevice->SetIDRenderEvents(frameID, startEventID, endEventID);
+}
+/* Added by Stephan Richter | END */
+
 void D3D11Replay::ReplayLog(uint32_t frameID, uint32_t startEventID, uint32_t endEventID, ReplayLogType replayType)
 {
 	m_pDevice->ReplayLog(frameID, startEventID, endEventID, replayType);
@@ -1263,6 +1289,13 @@ ResourceId D3D11Replay::GetLiveID(ResourceId id)
 {
 	return m_pDevice->GetResourceManager()->GetLiveID(id);
 }
+
+/* Added by Stephan Richter | BEGIN */
+ResourceId D3D11Replay::GetOriginalID(ResourceId id)
+{
+	return m_pDevice->GetResourceManager()->GetOriginalID(id);
+}
+/* Added by Stephan Richter | END */
 		
 bool D3D11Replay::GetMinMax(ResourceId texid, uint32_t sliceFace, uint32_t mip, uint32_t sample, float *minval, float *maxval)
 {
@@ -1288,6 +1321,17 @@ byte *D3D11Replay::GetTextureData(ResourceId tex, uint32_t arrayIdx, uint32_t mi
 {
 	return m_pDevice->GetDebugManager()->GetTextureData(tex, arrayIdx, mip, resolve, forceRGBA8unorm, blackPoint, whitePoint, dataSize);
 }
+
+/* Added by Stephan Richter | BEGIN */
+vector<byte> D3D11Replay::GetShaderData(ResourceId buff)
+{	
+	auto it = WrappedShader::m_ShaderList.find(buff);
+	if (it == WrappedShader::m_ShaderList.end())
+		return vector<byte>();
+
+	return it->second->GetByteCode();
+}
+/* Added by Stephan Richter | END */
 
 void D3D11Replay::ReplaceResource(ResourceId from, ResourceId to)
 {

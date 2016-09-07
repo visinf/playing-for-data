@@ -146,6 +146,11 @@ struct ReplayRenderer : public IReplayRenderer
 		bool SetFrameEvent(uint32_t frameID, uint32_t eventID);
 		bool SetFrameEvent(uint32_t frameID, uint32_t eventID, bool force);
 
+		/* Added by Stephan Richter | BEGIN */
+		void SetIDRenderingEvents(uint32_t frameID, uint32_t startEventID, uint32_t endEventID);
+		void SetIDRendering(bool active, ResourceId shaderID);
+		/* Added by Stephan Richter | END */
+
 		void FetchPipelineState();
 
 		bool GetD3D11PipelineState(D3D11PipelineState *state);
@@ -166,6 +171,11 @@ struct ReplayRenderer : public IReplayRenderer
 		bool DescribeCounter(uint32_t counterID, CounterDescription *desc);
 		bool GetTextures(rdctype::array<FetchTexture> *texs);
 		bool GetBuffers(rdctype::array<FetchBuffer> *bufs);
+		
+		/* Added by Stephan Richter | BEGIN */
+		bool GetPixelShaders(rdctype::array<FetchShader> *shaders);
+		/* Added by Stephan Richter | END */
+
 		bool GetResolve(uint64_t *callstack, uint32_t callstackLen, rdctype::array<rdctype::str> *trace);
 		ShaderReflection *GetShaderDetails(ResourceId shader);
 		bool GetDebugMessages(rdctype::array<DebugMessage> *msgs);
@@ -185,7 +195,17 @@ struct ReplayRenderer : public IReplayRenderer
 		bool GetBufferData(ResourceId buff, uint32_t offset, uint32_t len, rdctype::array<byte> *data);
 		bool GetTextureData(ResourceId buff, uint32_t arrayIdx, uint32_t mip, rdctype::array<byte> *data);
 		
+		/* Added by Stephan Richter | BEGIN */
+		bool GetShaderData(ResourceId buff, rdctype::array<byte> *data);
+		/* Added by Stephan Richter | END */
+		
 		bool SaveTexture(const TextureSave &saveData, const char *path);
+		
+		/* Added by Stephan Richter | BEGIN */
+		bool HashTexture(const TextureSave &saveData, const char *path);
+		bool HashBufferData(ResourceId buffer, const char *path);
+		bool HashShader(ResourceId buffer, const char *path);
+		/* Added by Stephan Richter | END */
 
 		bool GetCBufferVariableContents(ResourceId shader, uint32_t cbufslot, ResourceId buffer, uint32_t offs, rdctype::array<ShaderVariable> *vars);
 	
@@ -222,6 +242,9 @@ struct ReplayRenderer : public IReplayRenderer
 		std::vector<ReplayOutput *> m_Outputs;
 
 		std::vector<FetchBuffer> m_Buffers;
+		/* Added by Stephan Richter | BEGIN */
+		std::vector<FetchShader> m_Shaders;
+		/* Added by Stephan Richter | END */
 		std::vector<FetchTexture> m_Textures;
 
 		IReplayDriver *m_pDevice;

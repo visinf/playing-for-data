@@ -66,12 +66,19 @@ namespace renderdocui.Code
         private UInt32 m_EventID = 0;
         private UInt32 m_DeferredEvent = 0;
 
+        /* Added by Stephan Richter | BEGIN */
+        private ResourceId m_ShaderID;
+        /* Added by Stephan Richter | END */
+
         private APIProperties m_APIProperties = null;
 
         private FetchFrameInfo[] m_FrameInfo = null;
         private FetchDrawcall[][] m_DrawCalls = null;
         private FetchBuffer[] m_Buffers = null;
         private FetchTexture[] m_Textures = null;
+        /* Added by Stephan Richter | BEGIN */
+        private FetchShader[] m_Shaders = null;
+        /* Added by Stephan Richter | END */
 
         private D3D11PipelineState m_D3D11PipelineState = null;
         private GLPipelineState m_GLPipelineState = null;
@@ -254,8 +261,15 @@ namespace renderdocui.Code
             // use a kind of heuristic to group together passes where the outputs are similar enough.
             // could be useful for example if you're rendering to a gbuffer and sometimes you render
             // without one target, but the draws are still batched up.
-            if (numSame > Math.Max(numAOuts, numBOuts) / 2 && Math.Max(numAOuts, numBOuts) > 1)
-                return true;
+
+            /* Removed by Stephan Richter | BEGIN */
+            /* Grouping without the heuristic provided more stable results. */
+
+            //if (numSame > Math.Max(numAOuts, numBOuts) / 2 && Math.Max(numAOuts, numBOuts) > 1)
+            //    return true;
+            //if (numSame == numAOuts && numSame == numBOuts)
+            //    return true;
+            /* Added by Stephan Richter | END */
 
             if (numSame == Math.Max(numAOuts, numBOuts))
                 return true;
@@ -494,6 +508,10 @@ namespace renderdocui.Code
 
                 postloadProgress = 0.7f;
 
+                /* Added by Stephan Richter | BEGIN */
+                m_Shaders = r.GetShaders();
+                /* Added by Stephan Richter | END */
+
                 m_Buffers = r.GetBuffers();
 
                 postloadProgress = 0.8f;
@@ -540,6 +558,8 @@ namespace renderdocui.Code
 
             List<ILogViewerForm> logviewers = new List<ILogViewerForm>();
             logviewers.AddRange(m_LogViewers);
+
+            StaticExports.LogText("Notifying LogViewers.");
 
             // notify all the registers log viewers that a log has been loaded
             foreach (var logviewer in logviewers)
@@ -827,7 +847,7 @@ namespace renderdocui.Code
                     logviewer.OnEventSelected(frameID, eventID);
             }
         }
-
+                
         public void SetEventID(ILogViewerForm exclude, UInt32 frameID, UInt32 eventID)
         {
             m_FrameID = frameID;
@@ -858,5 +878,264 @@ namespace renderdocui.Code
         }
 
         #endregion
+
+
+        /* Added by Stephan Richter | BEGIN */
+
+        #region Additional Helpers for Python
+
+        public bool SaveTexture(ResourceId id, string filename)
+        {
+            if (id != ResourceId.Null)
+            {
+                TextureSave save = new TextureSave();
+                if (filename.EndsWith("png"))
+                {
+                    save.destType = FileType.PNG;
+                }
+                else if (filename.EndsWith("dds"))
+                {
+                    save.destType = FileType.DDS;
+                }
+                else if (filename.EndsWith("exr"))
+                {
+                    save.destType = FileType.EXR;
+                }
+                else if (filename.EndsWith("hdr"))
+                {
+                    save.destType = FileType.HDR;
+                }
+                else if (filename.EndsWith("jpg"))
+                {
+                    save.destType = FileType.JPG;
+                }
+                else if (filename.EndsWith("bmp"))
+                {
+                    save.destType = FileType.BMP;
+                }
+                else if (filename.EndsWith("tga"))
+                {
+                    save.destType = FileType.TGA;
+                }
+                else return false;
+
+                save.id = id;
+
+                bool ret = false;
+                Renderer.Invoke((ReplayRenderer r) =>
+                {
+                    ret = r.SaveTexture(save, filename);
+                });
+
+                return ret;
+            }
+            else return false;
+        }
+
+        public ShaderVariable[] GetCBufferVariableContents(ResourceId shader, UInt32 cbufslot, ResourceId buffer, UInt32 offs)
+        {
+            ShaderVariable[] ret = null;
+            Renderer.Invoke((ReplayRenderer r) =>
+            {
+                ret = r.GetCBufferVariableContents(shader, cbufslot, buffer, offs);
+            });
+
+            return ret;
+        }
+
+        public bool HashTexture(ResourceId id)
+        {
+            string filename = "tex_hashes.txt";
+            if (id != ResourceId.Null)
+            {
+                TextureSave save = new TextureSave();
+                save.destType = FileType.EXR;
+                save.id = id;
+
+                bool ret = false;
+                Renderer.Invoke((ReplayRenderer r) =>
+                {
+                    ret = r.HashTexture(save, filename);
+                });
+
+                return ret;
+            }
+            else return false;
+        }
+
+        public void HashTextures(string filename)
+        {            
+            TextureSave save = new TextureSave();
+            save.destType = FileType.EXR;
+            
+            foreach(var tex in m_Textures)
+            {
+                save.id = tex.ID;
+
+                bool ret = false;
+                Renderer.Invoke((ReplayRenderer r) =>
+                {
+                    ret = r.HashTexture(save, filename);
+                });
+            }            
+        }
+
+        public void HashBuffers(string filename)
+        {            
+            foreach (var buf in m_Buffers)
+            {
+                bool ret = false;
+                Renderer.Invoke((ReplayRenderer r) =>
+                {
+                    ret = r.HashBuffer(buf.ID, filename);
+                });
+            }            
+        }
+
+        public void HashShaders(string filename)
+        {            
+            foreach (var shad in m_Shaders)
+            {
+                bool ret = false;
+                Renderer.Invoke((ReplayRenderer r) =>
+                {
+                    ret = r.HashShader(shad.ID, filename);
+                });
+            }
+        }
+
+        public bool HashBuffer(ResourceId id)
+        {
+            string filename = "mesh_hashes.txt";
+            if (id != ResourceId.Null)
+            {
+                bool ret = false;
+                Renderer.Invoke((ReplayRenderer r) =>
+                {
+                    ret = r.HashBuffer(id, filename);
+                });
+
+                return ret;
+            }
+            else return false;
+        }
+
+        public bool ReplaceShader(ResourceId fromId, ResourceId toId)
+        {
+            if(fromId == toId)
+            {
+                return false;
+            }
+            bool ret = false;
+            Renderer.Invoke((ReplayRenderer r) =>
+            {                
+                if (toId == ResourceId.Null)
+                {
+                    ret = r.RemoveReplacement(fromId);
+                }
+                else
+                {
+                    ret = r.ReplaceResource(fromId, toId);
+                }
+            });
+            return ret;
+        }
+
+        public bool RemoveShaderReplacement(ResourceId fromId)
+        {
+            bool ret = false;
+            Renderer.Invoke((ReplayRenderer r) =>
+            {
+                ret = r.RemoveReplacement(fromId);                
+            });
+            return ret;
+        }
+
+        public ResourceId CreateIDShader()
+        {          
+            string entryFunc = "IDShader";
+            string hlsl = "cbuffer PS_ID_BUFFER : register(b0) {\n" + 
+                            "	uint texID;\n" + 
+                            "	uint meshID;\n" + 
+                            "	uint shaderID;\n" +
+                            "	uint bla;\n" + 
+                            "};\n" + 
+                            "\n" + 
+                            "struct PSInput\n" + 
+                            "{\n" + 
+                            "};\n" + 
+                            "\n" + 
+                            "struct PSOutput\n" + 
+                            "{\n" + 
+                            "	float4 param0 : SV_Target0;\n" + 
+                            "	float4 param1 : SV_Target1;\n" + 
+                            "	float4 param2 : SV_Target2;\n" + 
+                            "	float4 param3 : SV_Target3;\n" + 
+                            "};\n" +
+                            "float4 encode(in uint tid)\n" +
+                            "{\n" +
+                            "		uint r = tid % 256;\n" +
+                            "		tid = (tid - r) / 256;\n" +
+                            "		uint g = tid % 256;\n" +
+                            "		tid = (tid - g) / 256;\n" +
+                            "		uint b = tid % 256;\n" +
+                            "		tid = (tid - b) / 256;\n" +
+                            "		uint a = tid;\n" +
+                            "		return float4(r / 255.0f, g / 255.0f, b / 255.0f, a / 255.0f);\n" +
+                            "}\n" +
+                            "PSOutput IDShader(in PSInput IN)\n" + 
+                            "{\n" + 
+                            "	PSOutput OUT = (PSOutput)0;\n" +   
+                            "   float4 tc = encode(texID);\n" +
+                            "   float4 mc = encode(meshID);\n" +
+                            "   float4 sc = encode(shaderID);\n" +
+                            "	OUT.param0 = float4(tc.x, tc.y, tc.z, 1.0);\n" +
+                            "	OUT.param1 = float4(mc.x, mc.y, mc.z, 1.0);\n" +
+                            "	OUT.param2 = float4(sc.x, sc.y, sc.z, 1.0);\n" +
+                            "	OUT.param3 = float4(tc.w, mc.w, sc.w, 1.0);\n" +
+                            "	return OUT;\n" +
+                            "}\n\n";
+               
+            /* compile our id shader */
+            ResourceId id = ResourceId.Null;
+            Renderer.Invoke((ReplayRenderer r) =>
+            {
+                string errs = "";               
+                id = r.BuildTargetShader(entryFunc, hlsl, 0, ShaderStageType.Pixel, out errs);
+            });
+            return id;
+        }
+
+        public void SetIDRenderingEvents(UInt32 frameID, UInt32 startEventID, UInt32 endEventID)
+        {           
+            m_Renderer.Invoke((ReplayRenderer r) => { r.SetContextFilter(ResourceId.Null, 0, 0); });
+            m_Renderer.Invoke((ReplayRenderer r) =>
+            {
+                r.SetIDRenderingEvents(frameID, startEventID, endEventID);
+            });
+        }
+
+        public void SetIDRendering(bool active)
+        {
+            if (m_ShaderID == ResourceId.Null)
+            {
+                m_ShaderID = CreateIDShader();
+            }
+
+            if (m_ShaderID != ResourceId.Null)
+            {
+                ResourceId shaderID = m_ShaderID;
+                m_Renderer.Invoke((ReplayRenderer r) => { r.SetContextFilter(ResourceId.Null, 0, 0); });
+                m_Renderer.Invoke((ReplayRenderer r) =>
+                {
+                    r.SetIDRendering(active, shaderID);
+                });
+            }
+        }
+
+
+        #endregion
+
+        /* Added by Stephan Richter | END */
     }
 }

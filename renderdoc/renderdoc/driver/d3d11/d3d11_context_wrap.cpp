@@ -32,6 +32,94 @@
 uint32_t NullCBOffsets[D3D11_COMMONSHADER_CONSTANT_BUFFER_API_SLOT_COUNT];
 uint32_t NullCBCounts[D3D11_COMMONSHADER_CONSTANT_BUFFER_API_SLOT_COUNT];
 
+/* Added by Stephan Richter | BEGIN */
+#pragma region Render IDs
+
+__declspec(align(16))
+typedef struct PS_ID_BUFFER
+{
+	uint32_t texID;
+	uint32_t meshID;
+	uint32_t shaderID;
+	uint32_t bla;
+} PS_ID_BUFFER;
+
+void WrappedID3D11DeviceContext::SetIDRenderEvents(uint32_t frameID, uint32_t startEvent, uint32_t endEvent)
+{
+	//m_RenderIDEvents[frameID] = std::make_pair(startEvent, endEvent);
+	m_StartEventID = startEvent;
+	m_EndEventID = endEvent;
+}
+
+void WrappedID3D11DeviceContext::SetIDRendering(bool active, ResourceId shaderID)
+{
+	m_DoRenderID = active;
+	if (active)
+	{
+		m_IDShader = shaderID;
+	}
+}
+
+void WrappedID3D11DeviceContext::SetupIDBuffer()
+{
+	PS_ID_BUFFER idBuffer;
+	ZeroMemory(&idBuffer, sizeof(idBuffer));
+	idBuffer.texID = 12423;
+	idBuffer.meshID = 10;
+	idBuffer.shaderID = 3605;
+
+	D3D11_BUFFER_DESC bufferDesc;
+	ZeroMemory(&bufferDesc, sizeof(bufferDesc));
+	bufferDesc.ByteWidth = sizeof(PS_ID_BUFFER); // texture, mesh, shader
+	bufferDesc.Usage = D3D11_USAGE_DYNAMIC;
+	bufferDesc.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
+	bufferDesc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;	
+
+	D3D11_SUBRESOURCE_DATA initData;
+	initData.pSysMem = &idBuffer;
+	initData.SysMemPitch = 0;
+	initData.SysMemSlicePitch = 0;
+
+	m_pDevice->GetReal()->CreateBuffer(&bufferDesc, &initData, &m_IDBuffer);
+}
+
+bool WrappedID3D11DeviceContext::IsIDRenderingPass()
+{
+	return (m_DoRenderID && m_StartEventID < m_CurEventID && m_CurEventID < m_EndEventID);
+}
+
+void WrappedID3D11DeviceContext::InjectBuffer()
+{
+	if (IsIDRenderingPass())
+	{
+		if (m_IDBuffer == NULL)
+		{
+			SetupIDBuffer();
+		}
+
+		if (m_IDBuffer != NULL)
+		{
+			m_pRealContext->PSSetConstantBuffers(0, 1, &m_IDBuffer);
+		}
+
+		if (m_IDBuffer != NULL)
+		{
+			PS_ID_BUFFER idBuffer;
+			idBuffer.texID = m_CurTextureID;
+			idBuffer.meshID = m_CurMeshID;
+			idBuffer.shaderID = m_CurShaderID;
+
+			D3D11_MAPPED_SUBRESOURCE mappedBuffer;
+			m_pRealContext->Map(m_IDBuffer, 0, D3D11_MAP_WRITE_DISCARD, 0, &mappedBuffer);
+			memcpy(mappedBuffer.pData, &idBuffer, sizeof(idBuffer));
+			m_pRealContext->Unmap(m_IDBuffer, 0);
+		}
+	}
+}
+
+#pragma endregion
+/* Added by Stephan Richter | END */
+
 #pragma region D3DPERF
 
 bool WrappedID3D11DeviceContext::Serialise_SetMarker(uint32_t col, const wchar_t *name_)
@@ -439,6 +527,67 @@ void WrappedID3D11DeviceContext::IASetVertexBuffers(UINT StartSlot, UINT NumBuff
 	VerifyState();
 }
 
+/* Added by Stephan Richter | BEGIN */
+//void HashIndexBuffer(ID3D11Buffer *buffer)
+//{
+//	const uint32_t STAGE_BUFFER_BYTE_SIZE = 4 * 1024 * 1024;
+//
+//	D3D11_MAPPED_SUBRESOURCE mapped;
+//	D3D11_BUFFER_DESC desc;
+//	buffer->GetDesc(&desc);
+//
+//	len = desc.ByteWidth;
+//	uint32_t outOffs = 0;
+//
+//	vector<byte> ret;
+//
+//	ret.resize(len);
+//
+//	D3D11_BOX box;
+//	box.top = 0;
+//	box.bottom = 1;
+//	box.front = 0;
+//	box.back = 1;
+//
+//	ID3D11Buffer *src = UNWRAP(WrappedID3D11Buffer, buffer);
+//
+//	while (len > 0)
+//	{
+//		uint32_t chunkSize = RDCMIN(len, STAGE_BUFFER_BYTE_SIZE);
+//
+//		if (desc.StructureByteStride > 0)
+//			chunkSize -= (chunkSize % desc.StructureByteStride);
+//
+//		box.left = RDCMIN(offset + outOffs, desc.ByteWidth);
+//		box.right = RDCMIN(offset + outOffs + chunkSize, desc.ByteWidth);
+//
+//		if (box.right - box.left == 0)
+//			break;
+//
+//		m_pImmediateContext->CopySubresourceRegion(m_DebugRender.StageBuffer, 0, 0, 0, 0, src, 0, &box);
+//
+//		HRESULT hr = m_pImmediateContext->Map(m_DebugRender.StageBuffer, 0, D3D11_MAP_READ, 0, &mapped);
+//
+//		if (FAILED(hr))
+//		{
+//			RDCERR("Failed to map bufferdata buffer %08x", hr);
+//			return ret;
+//		}
+//		else
+//		{
+//			memcpy(&ret[outOffs], mapped.pData, RDCMIN(len, STAGE_BUFFER_BYTE_SIZE));
+//
+//			m_pImmediateContext->Unmap(m_DebugRender.StageBuffer, 0);
+//		}
+//
+//		outOffs += chunkSize;
+//		len -= chunkSize;
+//	}
+//
+//	return ret;
+//}
+/* Added by Stephan Richter | END */
+
 bool WrappedID3D11DeviceContext::Serialise_IASetIndexBuffer(ID3D11Buffer *pIndexBuffer, DXGI_FORMAT Format_, UINT Offset_)
 {
 	SERIALISE_ELEMENT(ResourceId, Buffer, GetIDForResource(pIndexBuffer));
@@ -453,6 +602,11 @@ bool WrappedID3D11DeviceContext::Serialise_IASetIndexBuffer(ID3D11Buffer *pIndex
 		m_CurrentPipelineState->ChangeRefRead(m_CurrentPipelineState->IA.IndexBuffer, pIndexBuffer);
 		m_CurrentPipelineState->Change(m_CurrentPipelineState->IA.IndexFormat, Format);
 		m_CurrentPipelineState->Change(m_CurrentPipelineState->IA.IndexOffset, Offset);
+		
+		/* Added by Stephan Richter | BEGIN */
+		m_CurMeshID = uint32_t(Buffer.id);
+		/* Added by Stephan Richter | END */
+		
 		m_pRealContext->IASetIndexBuffer(UNWRAP(WrappedID3D11Buffer, pIndexBuffer), Format, Offset);
 		VerifyState();
 	}
@@ -2532,6 +2686,21 @@ bool WrappedID3D11DeviceContext::Serialise_PSSetShaderResources(UINT StartSlot_,
 		for(UINT i=0; i < NumViews; i++)
 			Views[i] = UNWRAP(WrappedID3D11ShaderResourceView, Views[i]);
 
+		/* Added by Stephan Richter | BEGIN */
+		/* update our constant buffers */
+		if (m_DoRenderID && m_StartEventID <= m_CurEventID && m_CurEventID <= m_EndEventID)
+		{			
+			if (NumViews > 0)
+			{
+				auto resource = m_pDevice->GetResourceManager()->GetOriginalID(GetIDForResource(m_CurrentPipelineState->PS.SRVs[0]));
+				if (resource != ResourceId())
+				{
+					m_CurTextureID = uint32_t(resource.id);
+				}
+			}
+		}
+		/* Added by Stephan Richter | END */
+
 		m_pRealContext->PSSetShaderResources(StartSlot, NumViews, Views);
 		VerifyState();
 	}
@@ -2581,15 +2750,15 @@ bool WrappedID3D11DeviceContext::Serialise_PSSetSamplers(UINT StartSlot_, UINT N
 	SERIALISE_ELEMENT(uint32_t, NumSamplers, NumSamplers_);
 
 	ID3D11SamplerState *Sampler[D3D11_COMMONSHADER_SAMPLER_SLOT_COUNT];
-
+	
 	for(UINT i=0; i < NumSamplers; i++)
 	{
 		SERIALISE_ELEMENT(ResourceId, id, GetIDForResource(ppSamplers[i]));
-
-		if(m_State <= EXECUTING && m_pDevice->GetResourceManager()->HasLiveResource(id))
+				
+		if (m_State <= EXECUTING && m_pDevice->GetResourceManager()->HasLiveResource(id))
 			Sampler[i] = (ID3D11SamplerState *)m_pDevice->GetResourceManager()->GetLiveResource(id);
-		else
-			Sampler[i] = NULL;
+		else		
+			Sampler[i] = NULL;			
 	}
 
 	if(m_State <= EXECUTING)
@@ -2657,9 +2826,22 @@ bool WrappedID3D11DeviceContext::Serialise_PSSetShader(ID3D11PixelShader *pShade
 			Instances[i] = UNWRAP(WrappedID3D11ClassInstance, Instances[i]);
 
 		ID3D11DeviceChild *pSH = NULL;
-		if(m_pDevice->GetResourceManager()->HasLiveResource(Shader))
-			pSH = (ID3D11DeviceChild *)m_pDevice->GetResourceManager()->GetLiveResource(Shader);
-		m_CurrentPipelineState->ChangeRefRead(m_CurrentPipelineState->PS.Shader, pSH);
+		
+		/* Added by Stephan Richter | BEGIN */
+		if (IsIDRenderingPass())
+		{
+			pSH = (ID3D11DeviceChild *)m_pDevice->GetResourceManager()->GetLiveResource(m_IDShader);
+			m_CurrentPipelineState->ChangeRefRead(m_CurrentPipelineState->PS.Shader, pSH);
+			m_CurShaderID = uint32_t(Shader.id);
+		}
+		else
+		{
+			if (m_pDevice->GetResourceManager()->HasLiveResource(Shader))
+				pSH = (ID3D11DeviceChild *)m_pDevice->GetResourceManager()->GetLiveResource(Shader);
+			m_CurrentPipelineState->ChangeRefRead(m_CurrentPipelineState->PS.Shader, pSH);
+		}
+		/* Added by Stephan Richter | END */
+				
 		m_pRealContext->PSSetShader(UNWRAP(WrappedID3D11Shader<ID3D11PixelShader>, pSH), Instances, NumClassInstances);
 		VerifyState();
 	}
@@ -3439,6 +3621,8 @@ bool WrappedID3D11DeviceContext::Serialise_DrawIndexedInstanced(UINT IndexCountP
 
 	if(m_State <= EXECUTING)
 	{
+		InjectBuffer();
+
 		m_pRealContext->DrawIndexedInstanced(IndexCountPerInstance, InstanceCount, StartIndexLocation, BaseVertexLocation, StartInstanceLocation);
 	}
 
@@ -3502,6 +3686,10 @@ bool WrappedID3D11DeviceContext::Serialise_DrawInstanced(UINT VertexCountPerInst
 
 	if(m_State <= EXECUTING)
 	{
+		/* Added by Stephan Richter | BEGIN */
+		InjectBuffer();
+		/* Added by Stephan Richter | END */
+
 		m_pRealContext->DrawInstanced(VertexCountPerInstance, InstanceCount, StartVertexLocation, StartInstanceLocation);
 	}
 	
@@ -3562,6 +3750,9 @@ bool WrappedID3D11DeviceContext::Serialise_DrawIndexed(UINT IndexCount_, UINT St
 
 	if(m_State <= EXECUTING)
 	{
+		/* Added by Stephan Richter | BEGIN */
+		InjectBuffer();
+		/* Added by Stephan Richter | END */
 		m_pRealContext->DrawIndexed(IndexCount, StartIndexLocation, BaseVertexLocation);
 	}
 	
@@ -3619,6 +3810,9 @@ bool WrappedID3D11DeviceContext::Serialise_Draw(UINT VertexCount_, UINT StartVer
 
 	if(m_State <= EXECUTING)
 	{
+		/* Added by Stephan Richter | BEGIN */
+		InjectBuffer();
+		/* Added by Stephan Richter | END */
 		m_pRealContext->Draw(VertexCount, StartVertexLocation);
 	}
 	
@@ -3681,6 +3875,10 @@ bool WrappedID3D11DeviceContext::Serialise_DrawAuto()
 		}
 		else
 		{
+			/* Added by Stephan Richter | BEGIN */
+			InjectBuffer();
+			/* Added by Stephan Richter | END */
+
 			ResourceId id = GetIDForResource(m_CurrentPipelineState->IA.VBs[0]);
 
 			StreamOutData &data = m_StreamOutCounters[id];
@@ -3779,6 +3977,9 @@ bool WrappedID3D11DeviceContext::Serialise_DrawIndexedInstancedIndirect(ID3D11Bu
 	
 	if(m_State <= EXECUTING && m_pDevice->GetResourceManager()->HasLiveResource(BufferForArgs))
 	{
+		/* Added by Stephan Richter | BEGIN */
+		InjectBuffer();
+		/* Added by Stephan Richter | END */
 		m_pRealContext->DrawIndexedInstancedIndirect(UNWRAP(WrappedID3D11Buffer, m_pDevice->GetResourceManager()->GetLiveResource(BufferForArgs)), AlignedByteOffsetForArgs);
 	}
 	

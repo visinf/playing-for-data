@@ -81,6 +81,13 @@ ResourceId GLReplay::GetLiveID(ResourceId id)
 	return m_pDriver->GetResourceManager()->GetLiveID(id);
 }
 
+/* Added by Stephan Richter | BEGIN */
+ResourceId GLReplay::GetOriginalID(ResourceId id)
+{
+	return m_pDriver->GetResourceManager()->GetOriginalID(id);
+}
+/* Added by Stephan Richter | END */
+
 APIProperties GLReplay::GetAPIProperties()
 {
 	APIProperties ret;

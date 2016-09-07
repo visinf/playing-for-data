@@ -32,3 +32,4 @@ ipch/
 *.shfbproj_*
 
 renderdocui/3rdparty/ironpython/pythonlibs.zip
+renderdoc/3rdparty/zlib/build/

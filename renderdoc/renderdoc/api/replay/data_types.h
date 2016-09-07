@@ -92,6 +92,13 @@ struct FetchBuffer
 	uint64_t byteSize;
 };
 
+/* Added by Stephan Richter | BEGIN */
+struct FetchShader
+{
+	ResourceId ID;
+};
+/* Added by Stephan Richter | END */
+
 struct FetchTexture
 {
 	rdctype::str name;

@@ -1896,7 +1896,7 @@ namespace renderdocui.Windows.PipelineState
                 struct_contents += nl;
             }
         }
-
+        
         // start a shaderviewer to edit this shader, optionally generating stub HLSL if there isn't
         // HLSL source available for this shader.
         private void shaderedit_Click(object sender, EventArgs e)

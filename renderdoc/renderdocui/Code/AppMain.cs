@@ -114,34 +114,39 @@ namespace renderdocui.Code
                 }
             }
 
+            /* Modified by Stephan Richter | BEGIN */
+            var cfg = new PersistantConfig();
+
             if (args.Length > 0 && File.Exists(args[args.Length - 1]))
             {
                 filename = args[args.Length - 1];
+                cfg.ReadOnly = true;
             }
-
-            var cfg = new PersistantConfig();
-
-            // load up the config from user folder, handling errors if it's malformed and falling back to defaults
-            if (File.Exists(Core.ConfigFilename))
+            else
             {
-                try
+                // load up the config from user folder, handling errors if it's malformed and falling back to defaults
+                if (File.Exists(Core.ConfigFilename))
                 {
-                    cfg = PersistantConfig.Deserialize(Core.ConfigFilename);
-                }
-                catch (System.Xml.XmlException)
-                {
-                    MessageBox.Show(String.Format("Error loading config file\n{0}\nA default config is loaded and will be saved out.", Core.ConfigFilename));
-                }
-                catch (System.InvalidOperationException)
-                {
-                    MessageBox.Show(String.Format("Error loading config file\n{0}\nA default config is loaded and will be saved out.", Core.ConfigFilename));
-                }
-                catch (System.IO.IOException ex)
-                {
-                    MessageBox.Show(String.Format("Error loading config file: {1}\n{0}\nA default config is loaded and will be saved out.", Core.ConfigFilename, ex.Message));
+                    try
+                    {
+                        cfg = PersistantConfig.Deserialize(Core.ConfigFilename);
+                    }
+                    catch (System.Xml.XmlException)
+                    {
+                        MessageBox.Show(String.Format("Error loading config file\n{0}\nA default config is loaded and will be saved out.", Core.ConfigFilename));
+                    }
+                    catch (System.InvalidOperationException)
+                    {
+                        MessageBox.Show(String.Format("Error loading config file\n{0}\nA default config is loaded and will be saved out.", Core.ConfigFilename));
+                    }
+                    catch (System.IO.IOException ex)
+                    {
+                        MessageBox.Show(String.Format("Error loading config file: {1}\n{0}\nA default config is loaded and will be saved out.", Core.ConfigFilename, ex.Message));
+                    }
                 }
             }
-
+            /* Modified by Stephan Richter | END */
+            
             // propogate float formatting settings to the Formatter class used globally to format float values
             cfg.SetupFormatting();
 

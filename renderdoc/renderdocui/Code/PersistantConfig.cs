@@ -42,10 +42,18 @@ namespace renderdocui.Code
         public List<string> RecentLogFiles = new List<string>();
         public string LastCapturePath = "";
         public string LastCaptureExe = "";
+        
+        /* Added by Stephan Richter | BEGIN */
+        public string LoadScriptFile = "D:/code/projects/gtd/scripts/extract_buffers.py";
+        /* Added by Stephan Richter | END */
         public List<string> RecentCaptureSettings = new List<string>();
         public int CallstackLevelSkip = 0;
 
         public string CaptureSavePath = "";
+
+        /* Added by Stephan Richter | BEGIN */
+        public bool ExecuteScriptOnLoad = true;
+        /* Added by Stephan Richter | END */
 
         public bool TextureViewer_ResetRange = false;
         public bool TextureViewer_PerTexSettings = true;

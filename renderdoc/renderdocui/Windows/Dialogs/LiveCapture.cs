@@ -136,153 +136,166 @@ namespace renderdocui.Windows
 
         private void ConnectionThreadEntry()
         {
-            try
+            /* Modified by Stephan Richter | BEGIN */
+
+            bool wentFine = false;
+            int numTried = 0;
+
+            do
             {
-                string username = System.Security.Principal.WindowsIdentity.GetCurrent().Name;
+                numTried++;
 
-                m_Connection = StaticExports.CreateRemoteAccessConnection(m_Host, m_RemoteIdent, username, true);
-
-                if (m_Connection.Connected)
+                try
                 {
-                    string api = "...";
-                    if (m_Connection.API.Length > 0) api = m_Connection.API;
-                    this.BeginInvoke((MethodInvoker)delegate
-                    {
-                        if (m_Connection.PID == 0)
-                        {
-                            connectionStatus.Text = String.Format("Connection established to {0} ({1})", m_Connection.Target, api);
-                            Text = String.Format("{0} ({1})", m_Connection.Target, api);
-                        }
-                        else
-                        {
-                            connectionStatus.Text = String.Format("Connection established to {0} [PID {1}] ({2})",
-                                     m_Connection.Target, m_Connection.PID, api);
-                            Text = String.Format("{0} [PID {1}] ({2})", m_Connection.Target, m_Connection.PID, api);
-                        }
-                        connectionIcon.Image = global::renderdocui.Properties.Resources.connect;
-                    });
-                }
-                else
-                {
-                    throw new ApplicationException();
-                }
+                    string username = System.Security.Principal.WindowsIdentity.GetCurrent().Name;
 
-                while (m_Connection.Connected)
-                {
-                    m_Connection.ReceiveMessage();
+                    m_Connection = StaticExports.CreateRemoteAccessConnection(m_Host, m_RemoteIdent, username, true);
 
-                    if (m_TriggerCapture)
+                    if (m_Connection.Connected)
                     {
-                        m_Connection.TriggerCapture();
-                        m_TriggerCapture = false;
-                    }
-
-                    if (m_QueueCapture)
-                    {
-                        m_Connection.QueueCapture((uint)m_CaptureFrameNum);
-                        m_QueueCapture = false;
-                        m_CaptureFrameNum = 0;
-                    }
-
-                    if (m_Disconnect)
-                    {
-                        m_Connection.Shutdown();
-                        m_Connection = null;
-                        return;
-                    }
-
-                    if (m_Connection.InfoUpdated)
-                    {
+                        string api = "...";
+                        if (m_Connection.API.Length > 0) api = m_Connection.API;
                         this.BeginInvoke((MethodInvoker)delegate
                         {
-                            connectionStatus.Text = String.Format("Connection established to {0} ({1})", m_Connection.Target, m_Connection.API);
-                            Text = String.Format("{0} ({1})", m_Connection.Target, m_Connection.API);
+                            if (m_Connection.PID == 0)
+                            {
+                                connectionStatus.Text = String.Format("Connection established to {0} ({1})", m_Connection.Target, api);
+                                Text = String.Format("{0} ({1})", m_Connection.Target, api);
+                            }
+                            else
+                            {
+                                connectionStatus.Text = String.Format("Connection established to {0} [PID {1}] ({2})",
+                                         m_Connection.Target, m_Connection.PID, api);
+                                Text = String.Format("{0} [PID {1}] ({2})", m_Connection.Target, m_Connection.PID, api);
+                            }
                             connectionIcon.Image = global::renderdocui.Properties.Resources.connect;
                         });
-
-                        m_Connection.InfoUpdated = false;
+                    }
+                    else
+                    {
+                        throw new ApplicationException();
                     }
 
-                    if (m_Connection.CaptureExists)
+                    while (m_Connection.Connected)
                     {
-                        uint capID = m_Connection.CaptureFile.ID;
-                        DateTime timestamp = new DateTime(1970, 1, 1, 0, 0, 0);
-                        timestamp = timestamp.AddSeconds(m_Connection.CaptureFile.timestamp).ToLocalTime();
-                        byte[] thumb = m_Connection.CaptureFile.thumbnail;
-                        string path = m_Connection.CaptureFile.localpath;
+                        m_Connection.ReceiveMessage();
 
-                        if (path.Length == 0 || File.Exists(path))
+                        if (m_TriggerCapture)
+                        {
+                            m_Connection.TriggerCapture();
+                            m_TriggerCapture = false;
+                        }
+
+                        if (m_QueueCapture)
+                        {
+                            m_Connection.QueueCapture((uint)m_CaptureFrameNum);
+                            m_QueueCapture = false;
+                            m_CaptureFrameNum = 0;
+                        }
+
+                        if (m_Disconnect)
+                        {
+                            m_Connection.Shutdown();
+                            m_Connection = null;
+                            return;
+                        }
+
+                        if (m_Connection.InfoUpdated)
                         {
                             this.BeginInvoke((MethodInvoker)delegate
                             {
-                                CaptureAdded(capID, m_Connection.Target, m_Connection.API, thumb, timestamp);
-                                if (path.Length > 0)
-                                    CaptureRetrieved(capID, path);
+                                connectionStatus.Text = String.Format("Connection established to {0} ({1})", m_Connection.Target, m_Connection.API);
+                                Text = String.Format("{0} ({1})", m_Connection.Target, m_Connection.API);
+                                connectionIcon.Image = global::renderdocui.Properties.Resources.connect;
                             });
-                            m_Connection.CaptureExists = false;
 
-                            if (path.Length == 0)
-                                m_Connection.CopyCapture(capID, m_Core.TempLogFilename("remotecopy_" + m_Connection.Target));
+                            m_Connection.InfoUpdated = false;
                         }
-                    }
 
-                    if (m_Connection.CaptureCopied)
-                    {
-                        uint capID = m_Connection.CaptureFile.ID;
-                        string path = m_Connection.CaptureFile.localpath;
-
-                        this.BeginInvoke((MethodInvoker)delegate
+                        if (m_Connection.CaptureExists)
                         {
-                            CaptureRetrieved(capID, path);
-                        });
-                        m_Connection.CaptureCopied = false;
-                    }
+                            uint capID = m_Connection.CaptureFile.ID;
+                            DateTime timestamp = new DateTime(1970, 1, 1, 0, 0, 0);
+                            timestamp = timestamp.AddSeconds(m_Connection.CaptureFile.timestamp).ToLocalTime();
+                            byte[] thumb = m_Connection.CaptureFile.thumbnail;
+                            string path = m_Connection.CaptureFile.localpath;
 
-                    if (m_Connection.ChildAdded)
-                    {
-                        if (m_Connection.NewChild.PID != 0)
-                        {
-                            try
+                            if (path.Length == 0 || File.Exists(path))
                             {
-                                ChildProcess c = new ChildProcess();
-                                c.PID = (int)m_Connection.NewChild.PID;
-                                c.ident = m_Connection.NewChild.ident;
-                                c.name = Process.GetProcessById((int)m_Connection.NewChild.PID).ProcessName;
-
-                                lock (m_Children)
+                                this.BeginInvoke((MethodInvoker)delegate
                                 {
-                                    m_Children.Add(c);
+                                    CaptureAdded(capID, m_Connection.Target, m_Connection.API, thumb, timestamp);
+                                    if (path.Length > 0)
+                                        CaptureRetrieved(capID, path);
+                                });
+                                m_Connection.CaptureExists = false;
+
+                                if (path.Length == 0)
+                                    m_Connection.CopyCapture(capID, m_Core.TempLogFilename("remotecopy_" + m_Connection.Target));
+                            }
+                        }
+
+                        if (m_Connection.CaptureCopied)
+                        {
+                            uint capID = m_Connection.CaptureFile.ID;
+                            string path = m_Connection.CaptureFile.localpath;
+
+                            this.BeginInvoke((MethodInvoker)delegate
+                            {
+                                CaptureRetrieved(capID, path);
+                            });
+                            m_Connection.CaptureCopied = false;
+                        }
+
+                        if (m_Connection.ChildAdded)
+                        {
+                            if (m_Connection.NewChild.PID != 0)
+                            {
+                                try
+                                {
+                                    ChildProcess c = new ChildProcess();
+                                    c.PID = (int)m_Connection.NewChild.PID;
+                                    c.ident = m_Connection.NewChild.ident;
+                                    c.name = Process.GetProcessById((int)m_Connection.NewChild.PID).ProcessName;
+
+                                    lock (m_Children)
+                                    {
+                                        m_Children.Add(c);
+                                    }
+                                }
+                                catch (Exception)
+                                {
+                                    // process expired/doesn't exist anymore
                                 }
                             }
-                            catch (Exception)
-                            {
-                                // process expired/doesn't exist anymore
-                            }
+
+                            m_Connection.ChildAdded = false;
                         }
-
-                        m_Connection.ChildAdded = false;
                     }
+
+                    this.BeginInvoke((MethodInvoker)delegate
+                    {
+                        connectionStatus.Text = "Connection closed";
+                        connectionIcon.Image = global::renderdocui.Properties.Resources.disconnect;
+
+                        ConnectionClosed();
+                    });
                 }
-
-                this.BeginInvoke((MethodInvoker)delegate
+                catch (ApplicationException)
                 {
-                    connectionStatus.Text = "Connection closed";
-                    connectionIcon.Image = global::renderdocui.Properties.Resources.disconnect;
+                    this.BeginInvoke((MethodInvoker)delegate
+                    {
+                        Text = (m_Host.Length > 0 ? (m_Host + " - ") : "") + "Connection failed";
+                        connectionStatus.Text = "Connection failed";
+                        connectionIcon.Image = global::renderdocui.Properties.Resources.delete;
 
-                    ConnectionClosed();
-                });
+                        //ConnectionClosed();
+                    });
+                }
             }
-            catch (ApplicationException)
-            {
-                this.BeginInvoke((MethodInvoker)delegate
-                {
-                    Text = (m_Host.Length > 0 ? (m_Host + " - ") : "") + "Connection failed";
-                    connectionStatus.Text = "Connection failed";
-                    connectionIcon.Image = global::renderdocui.Properties.Resources.delete;
-
-                    ConnectionClosed();
-                });
-            }
+            while (!wentFine && numTried < 3);
+            
+            /* Modified by Stephan Richter | BEGIN */
         }
 
         Image MakeThumb(Size s, Stream st)

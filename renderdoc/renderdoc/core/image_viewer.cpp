@@ -100,9 +100,18 @@ class ImageViewer : public IReplayDriver
 		void FreeCustomShader(ResourceId id) { m_Proxy->FreeTargetResource(id); }
 		ResourceId ApplyCustomShader(ResourceId shader, ResourceId texid, uint32_t mip) { return m_Proxy->ApplyCustomShader(shader, m_TextureID, mip); }
 		vector<ResourceId> GetTextures() { return m_Proxy->GetTextures(); }
+		
+		/* Added by Stephan Richter | BEGIN */
+		vector<ResourceId> GetPixelShaders() { return m_Proxy->GetPixelShaders(); }
+		/* Added by Stephan Richter | END */
+		
 		FetchTexture GetTexture(ResourceId id) { return m_Proxy->GetTexture(m_TextureID); }
 		byte *GetTextureData(ResourceId tex, uint32_t arrayIdx, uint32_t mip, bool resolve, bool forceRGBA8unorm, float blackPoint, float whitePoint, size_t &dataSize)
 		{ return m_Proxy->GetTextureData(m_TextureID, arrayIdx, mip, resolve, forceRGBA8unorm, blackPoint, whitePoint, dataSize); }
+		
+		/* Added by Stephan Richter | BEGIN */
+		vector<byte> GetShaderData(ResourceId id) { return m_Proxy->GetShaderData(id); }
+		/* Added by Stephan Richter | END */
 
 		// handle a couple of operations ourselves to return a simple fake log
 		APIProperties GetAPIProperties() { return m_Props; }
@@ -113,6 +122,11 @@ class ImageViewer : public IReplayDriver
 		void ReadLogInitialisation() {}
 		void RenderMesh(uint32_t frameID, uint32_t eventID, const vector<MeshFormat> &secondaryDraws, MeshDisplay cfg) {}
 		vector<ResourceId> GetBuffers() { return vector<ResourceId>(); }
+		
+		/* Added by Stephan Richter | BEGIN */
+		vector<ResourceId> GetShaders() { return vector<ResourceId>(); }
+		/* Added by Stephan Richter | END */
+
 		vector<DebugMessage> GetDebugMessages() { return vector<DebugMessage>(); }
 		FetchBuffer GetBuffer(ResourceId id) { FetchBuffer ret; RDCEraseEl(ret); return ret; }
 		void SavePipelineState() {}
@@ -122,6 +136,11 @@ class ImageViewer : public IReplayDriver
 		vector<EventUsage> GetUsage(ResourceId id) { return vector<EventUsage>(); }
 		bool IsRenderOutput(ResourceId id) { return false; }
 		ResourceId GetLiveID(ResourceId id) { return id; }
+		
+		/* Added by Stephan Richter | BEGIN */
+		ResourceId GetOriginalID(ResourceId id) { return id; }
+		/* Added by Stephan Richter | END */
+
 		vector<uint32_t> EnumerateCounters() { return vector<uint32_t>(); }
 		void DescribeCounter(uint32_t counterID, CounterDescription &desc) { RDCEraseEl(desc); desc.counterID = counterID; }
 		vector<CounterResult> FetchCounters(uint32_t frameID, uint32_t minEventID, uint32_t maxEventID, const vector<uint32_t> &counters) { return vector<CounterResult>(); }
@@ -146,6 +165,11 @@ class ImageViewer : public IReplayDriver
 		void BuildTargetShader(string source, string entry, const uint32_t compileFlags, ShaderStageType type, ResourceId *id, string *errors) {}
 		void ReplaceResource(ResourceId from, ResourceId to) {}
 		void RemoveReplacement(ResourceId id) {}
+
+		/* Added by Stephan Richter | BEGIN */
+		void SetIDRendering(bool active, ResourceId shaderID) {}
+		void SetIDRenderingEvents(uint32_t frameID, uint32_t startEvent, uint32_t endEvent) {}
+		/* Added by Stephan Richter | END */
 
 		// these are proxy functions, and will never be used
 		ResourceId CreateProxyTexture(FetchTexture templateTex)

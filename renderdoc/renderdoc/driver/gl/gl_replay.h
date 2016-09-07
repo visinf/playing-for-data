@@ -89,7 +89,7 @@ class GLReplay : public IReplayDriver
 		void Shutdown();
 
 		void SetDriver(WrappedOpenGL *d) { m_pDriver = d; }
-	
+
 		APIProperties GetAPIProperties();
 
 		vector<ResourceId> GetBuffers();
@@ -98,7 +98,12 @@ class GLReplay : public IReplayDriver
 		vector<ResourceId> GetTextures();
 		FetchTexture GetTexture(ResourceId id) { return m_CachedTextures[id]; }
 
+		vector<ResourceId> GetPixelShaders() { return vector < ResourceId >(); }
 		ShaderReflection *GetShader(ResourceId id);
+	
+		/* Added by Stephan Richter | BEGIN */
+		vector<byte> GetShaderData(ResourceId id) { return vector<byte>(); }
+		/* Added by Stephan Richter | END */
 		
 		vector<DebugMessage> GetDebugMessages();
 		
@@ -114,6 +119,12 @@ class GLReplay : public IReplayDriver
 
 		void ReadLogInitialisation();
 		void SetContextFilter(ResourceId id, uint32_t firstDefEv, uint32_t lastDefEv);
+		
+		/* Added by Stephan Richter | BEGIN */
+		void SetIDRendering(bool active, ResourceId shaderId) {}
+		void SetIDRenderingEvents(uint32_t frameID, uint32_t startEvent, uint32_t endEvent) {}
+		/* Added by Stephan Richter | END */
+
 		void ReplayLog(uint32_t frameID, uint32_t startEventID, uint32_t endEventID, ReplayLogType replayType);
 
 		uint64_t MakeOutputWindow(void *w, bool depth);
@@ -129,6 +140,9 @@ class GLReplay : public IReplayDriver
 		void InitPostVSBuffers(uint32_t frameID, uint32_t eventID);
 
 		ResourceId GetLiveID(ResourceId id);
+		/* Added by Stephan Richter | BEGIN */
+		ResourceId GetOriginalID(ResourceId id);
+		/* Added by Stephan Richter | END */
 		
 		bool GetMinMax(ResourceId texid, uint32_t sliceFace, uint32_t mip, uint32_t sample, float *minval, float *maxval);
 		bool GetHistogram(ResourceId texid, uint32_t sliceFace, uint32_t mip, uint32_t sample, float minval, float maxval, bool channels[4], vector<uint32_t> &histogram);

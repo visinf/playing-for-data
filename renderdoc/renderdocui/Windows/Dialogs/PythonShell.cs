@@ -17,12 +17,18 @@ using System.Threading;
 
 namespace renderdocui.Windows.Dialogs
 {
-    public partial class PythonShell : DockContent
+    /* Modified by Stephan Richter | BEGIN */
+    public partial class PythonShell : DockContent, ILogViewerForm, IScriptExecListener
+    /* Modified by Stephan Richter | END */
     {
         Core m_Core = null;
         
         private ScriptEngine pythonengine = null;
         private ScriptScope shellscope = null;
+
+        /* Added by Stephan Richter | BEGIN */
+        private List<IScriptExecListener> m_ScriptExecListeners = new List<IScriptExecListener>();
+        /* Added by Stephan Richter | END */
 
         ScintillaNET.Scintilla scriptEditor = null;
 
@@ -70,6 +76,14 @@ namespace renderdocui.Windows.Dialogs
             mode_Changed(shellMode, null);
 
             clearCmd_Click(null, null);
+
+            /* Added by Stephan Richter | BEGIN */
+            /* exectute script after file is loaded. */
+            if (m_Core.Config.ExecuteScriptOnLoad)
+            {
+                m_Core.AddLogViewer(this);
+            }
+            /* Added by Stephan Richter | END */
         }
 
         void scriptEditor_KeyDown(object sender, KeyEventArgs e)
@@ -163,6 +177,13 @@ namespace renderdocui.Windows.Dialogs
             stdout = null;
             stdoutreader = null;
             stdoutwriter = null;
+
+            /* Added by Stephan Richter | BEGIN */
+            foreach (var listener in m_ScriptExecListeners)
+            {
+                listener.OnScriptExecuted();
+            }
+            /* Added by Stephan Richter | END */
 
             return output;
         }
@@ -476,5 +497,70 @@ namespace renderdocui.Windows.Dialogs
         {
             SetLineNumber(linenum);
         }
+
+        /* Added by Stephan Richter | BEGIN */
+        public void OnLogfileLoaded()
+        {
+            StaticExports.LogText("Running Python.");
+
+            mode_Changed(scriptMode, null);
+
+            try
+            {
+                scriptEditor.Text = File.ReadAllText(m_Core.Config.LoadScriptFile);
+            }
+            catch (Exception ex)
+            {
+                StaticExports.LogText(String.Format("Could not open script file \"{0}\"\n", m_Core.Config.LoadScriptFile));
+                return;
+            }
+
+            m_ScriptExecListeners.Add(this);
+
+            //runButton_Click(null, null);
+
+            var scriptscope = NewScope(pythonengine);
+            me = this;
+            var script = scriptEditor.Text;
+
+            scriptOutput.Text = "";
+            linenum = -1;
+
+            Thread th = Helpers.NewThread(new ThreadStart(() =>
+            {
+                pythonengine.SetTrace(PythonTrace);
+
+                // ignore output, the trace handler above will print output
+                string output = Execute(pythonengine, scriptscope, script);
+                pythonengine.SetTrace(null);
+                StaticExports.LogText(output);
+            }));
+
+            th.Start();        
+        }
+
+        public void OnLogfileClosed()
+        {
+            if (IsDisposed) return;
+
+            /* do nothing */
+        }
+
+        public void OnEventSelected(UInt32 frameID, UInt32 eventID)
+        {
+            if (IsDisposed) return;
+
+            /* do nothing */
+        }
+
+        #region IScriptExecListener
+
+        public void OnScriptExecuted()
+        {
+            m_Core.AppWindow.Close();
+        }
+        #endregion
+
+        /* Added by Stephan Richter | END */
     }
 }

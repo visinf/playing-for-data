@@ -239,7 +239,32 @@ private:
 	IMPLEMENT_FUNCTION_SERIALISED(void, SetMarker(uint32_t col, const wchar_t *name));
 	IMPLEMENT_FUNCTION_SERIALISED(int, PushEvent(uint32_t col, const wchar_t *name));
 	IMPLEMENT_FUNCTION_SERIALISED(int, PopEvent());
+
+	/* Added by Stephan Richter | BEGIN */
+	////////////////////////////////////////////////////////////////
+	bool m_DoRenderID;
+	ID3D11Buffer *m_IDBuffer;
+	uint32_t m_StartEventID;
+	uint32_t m_EndEventID;
+	uint32_t m_CurTextureID;
+	uint32_t m_CurMeshID;
+	uint32_t m_CurShaderID;
+	ResourceId	m_IDShader;
+	/* Added by Stephan Richter | END */
+
 public:
+
+	/* Added by Stephan Richter | BEGIN */
+	void SetIDRenderEvents(uint32_t frameID, uint32_t startEvent, uint32_t endEvent);
+	void SetIDRendering(bool active, ResourceId shaderID);
+	void SetupIDBuffer();
+	void InjectBuffer();
+
+	//void HashIndexBuffer(ID3D11Buffer *buffer);
+
+	bool IsIDRenderingPass();
+	/* Added by Stephan Richter | END */
+
 	static const int AllocPoolCount = 2048;
 	static const int AllocPoolMaxByteSize = 3*1024*1024;
 	ALLOCATE_WITH_WRAPPED_POOL(WrappedID3D11DeviceContext, AllocPoolCount, AllocPoolMaxByteSize);

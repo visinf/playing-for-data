@@ -1112,6 +1112,12 @@ public:
 					m_Details = MakeShaderReflection(m_DXBCFile);
 				return m_Details;
 			}
+			/* Added by Stephan Richter | BEGIN */
+			vector<byte> GetByteCode()
+			{
+				return m_Bytecode;
+			}
+			/* Added by Stephan Richter | END */
 		private:
 			ShaderEntry(const ShaderEntry &e);
 			ShaderEntry &operator =(const ShaderEntry &e);

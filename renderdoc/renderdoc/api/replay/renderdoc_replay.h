@@ -176,6 +176,12 @@ struct IReplayRenderer
 
 	virtual bool SetContextFilter(ResourceId id, uint32_t firstDefEv, uint32_t lastDefEv) = 0;
 	virtual bool SetFrameEvent(uint32_t frameID, uint32_t eventID) = 0;
+	
+	/* Added by Stephan Richter | BEGIN */
+	virtual void SetIDRenderingEvents(uint32_t frameID, uint32_t startEventID, uint32_t endEventID) = 0;
+	virtual void SetIDRendering(bool active, ResourceId shaderID) = 0;
+	/* Added by Stephan Richter | END */
+
 	virtual bool GetD3D11PipelineState(D3D11PipelineState *state) = 0;
 	virtual bool GetGLPipelineState(GLPipelineState *state) = 0;
 
@@ -243,6 +249,12 @@ extern "C" RENDERDOC_API bool32 RENDERDOC_CC ReplayRenderer_InitResolver(ReplayR
  
 extern "C" RENDERDOC_API bool32 RENDERDOC_CC ReplayRenderer_SetContextFilter(ReplayRenderer *rend, ResourceId id, uint32_t firstDefEv, uint32_t lastDefEv);
 extern "C" RENDERDOC_API bool32 RENDERDOC_CC ReplayRenderer_SetFrameEvent(ReplayRenderer *rend, uint32_t frameID, uint32_t eventID);
+
+/* Added by Stephan Richter | BEGIN */
+extern "C" RENDERDOC_API void RENDERDOC_CC ReplayRenderer_SetIDRenderingEvents(ReplayRenderer *rend, uint32_t frameID, uint32_t startEventID, uint32_t endEventID);
+extern "C" RENDERDOC_API void RENDERDOC_CC ReplayRenderer_SetIDRendering(ReplayRenderer *rend, bool32 active, ResourceId shaderId);
+/* Added by Stephan Richter | END */
+
 extern "C" RENDERDOC_API bool32 RENDERDOC_CC ReplayRenderer_GetD3D11PipelineState(ReplayRenderer *rend, D3D11PipelineState *state);
 extern "C" RENDERDOC_API bool32 RENDERDOC_CC ReplayRenderer_GetGLPipelineState(ReplayRenderer *rend, GLPipelineState *state);
 
@@ -261,6 +273,11 @@ extern "C" RENDERDOC_API bool32 RENDERDOC_CC ReplayRenderer_EnumerateCounters(Re
 extern "C" RENDERDOC_API bool32 RENDERDOC_CC ReplayRenderer_DescribeCounter(ReplayRenderer *rend, uint32_t counterID, CounterDescription *desc);
 extern "C" RENDERDOC_API bool32 RENDERDOC_CC ReplayRenderer_GetTextures(ReplayRenderer *rend, rdctype::array<FetchTexture> *texs);
 extern "C" RENDERDOC_API bool32 RENDERDOC_CC ReplayRenderer_GetBuffers(ReplayRenderer *rend, rdctype::array<FetchBuffer> *bufs);
+
+/* Added by Stephan Richter | BEGIN */
+extern "C" RENDERDOC_API bool32 RENDERDOC_CC ReplayRenderer_GetPixelShaders(ReplayRenderer *rend, rdctype::array<FetchShader> *bufs);
+/* Added by Stephan Richter | END */
+
 extern "C" RENDERDOC_API bool32 RENDERDOC_CC ReplayRenderer_GetResolve(ReplayRenderer *rend, uint64_t *callstack, uint32_t callstackLen, rdctype::array<rdctype::str> *trace);
 extern "C" RENDERDOC_API ShaderReflection* RENDERDOC_CC ReplayRenderer_GetShaderDetails(ReplayRenderer *rend, ResourceId shader);
 extern "C" RENDERDOC_API bool32 RENDERDOC_CC ReplayRenderer_GetDebugMessages(ReplayRenderer *rend, rdctype::array<DebugMessage> *msgs);
@@ -275,6 +292,12 @@ extern "C" RENDERDOC_API bool32 RENDERDOC_CC ReplayRenderer_GetUsage(ReplayRende
 extern "C" RENDERDOC_API bool32 RENDERDOC_CC ReplayRenderer_GetCBufferVariableContents(ReplayRenderer *rend, ResourceId shader, uint32_t cbufslot, ResourceId buffer, uint32_t offs, rdctype::array<ShaderVariable> *vars);
 
 extern "C" RENDERDOC_API bool32 RENDERDOC_CC ReplayRenderer_SaveTexture(ReplayRenderer *rend, const TextureSave &saveData, const char *path);
+
+/* Added by Stephan Richter | BEGIN */
+extern "C" RENDERDOC_API bool32 RENDERDOC_CC ReplayRenderer_HashTexture(ReplayRenderer *rend, const TextureSave &saveData, const char *path);
+extern "C" RENDERDOC_API bool32 RENDERDOC_CC ReplayRenderer_HashBufferData(ReplayRenderer *rend, ResourceId buffer, const char *path);
+extern "C" RENDERDOC_API bool32 RENDERDOC_CC ReplayRenderer_HashShader(ReplayRenderer *rend, ResourceId buffer, const char *path);
+/* Added by Stephan Richter | END */
 
 extern "C" RENDERDOC_API bool32 RENDERDOC_CC ReplayRenderer_GetPostVSData(ReplayRenderer *rend, uint32_t instID, MeshDataStage stage, MeshFormat *data);
 

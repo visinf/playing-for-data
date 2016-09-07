@@ -62,6 +62,10 @@ class IRemoteDriver
 
 		virtual vector<DebugMessage> GetDebugMessages() = 0;
 
+		/* Added by Stephan Richter | BEGIN */
+		virtual vector<ResourceId> GetPixelShaders() = 0;
+		/* Added by Stephan Richter | END */
+
 		virtual ShaderReflection *GetShader(ResourceId id) = 0;
 		
 		virtual vector<EventUsage> GetUsage(ResourceId id) = 0;
@@ -71,8 +75,7 @@ class IRemoteDriver
 		virtual GLPipelineState GetGLPipelineState() = 0;
 
 		virtual vector<FetchFrameRecord> GetFrameRecord() = 0;
-
-
+		
 		virtual void ReadLogInitialisation() = 0;
 		virtual void SetContextFilter(ResourceId id, uint32_t firstDefEv, uint32_t lastDefEv) = 0;
 		virtual void ReplayLog(uint32_t frameID, uint32_t startEventID, uint32_t endEventID, ReplayLogType replayType) = 0;
@@ -80,11 +83,19 @@ class IRemoteDriver
 		virtual void InitPostVSBuffers(uint32_t frameID, uint32_t eventID) = 0;
 
 		virtual ResourceId GetLiveID(ResourceId id) = 0;
+
+		/* Added by Stephan Richter | BEGIN */
+		virtual ResourceId GetOriginalID(ResourceId id) = 0;
+		/* Added by Stephan Richter | END */
 		
 		virtual MeshFormat GetPostVSBuffers(uint32_t frameID, uint32_t eventID, uint32_t instID, MeshDataStage stage) = 0;
 		
 		virtual vector<byte> GetBufferData(ResourceId buff, uint32_t offset, uint32_t len) = 0;
 		virtual byte *GetTextureData(ResourceId tex, uint32_t arrayIdx, uint32_t mip, bool resolve, bool forceRGBA8unorm, float blackPoint, float whitePoint, size_t &dataSize) = 0;
+		
+		/* Added by Stephan Richter | BEGIN */
+		virtual vector<byte> GetShaderData(ResourceId buff) = 0;
+		/* Added by Stephan Richter | END */
 		
 		virtual void BuildTargetShader(string source, string entry, const uint32_t compileFlags, ShaderStageType type, ResourceId *id, string *errors) = 0;
 		virtual void ReplaceResource(ResourceId from, ResourceId to) = 0;
@@ -150,4 +161,9 @@ class IReplayDriver : public IRemoteDriver
 		
 		virtual void PickPixel(ResourceId texture, uint32_t x, uint32_t y, uint32_t sliceFace, uint32_t mip, uint32_t sample, float pixel[4]) = 0;
 		virtual uint32_t PickVertex(uint32_t frameID, uint32_t eventID, MeshDisplay cfg, uint32_t x, uint32_t y) = 0;
+
+		/* Added by Stephan Richter | BEGIN */
+		virtual void SetIDRenderingEvents(uint32_t frameID, uint32_t startEventID, uint32_t endEventID) = 0;
+		virtual void SetIDRendering(bool active, ResourceId shaderID) = 0;
+		/* Added by Stephan Richter | END */
 };

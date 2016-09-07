@@ -210,6 +210,14 @@ namespace renderdoc
         [DllImport("renderdoc.dll", CharSet = CharSet.Unicode, CallingConvention = CallingConvention.Cdecl)]
         private static extern bool ReplayRenderer_SetFrameEvent(IntPtr real, UInt32 frameID, UInt32 eventID);
         [DllImport("renderdoc.dll", CharSet = CharSet.Unicode, CallingConvention = CallingConvention.Cdecl)]
+        
+        /* Added by Stephan Richter | BEGIN */
+        private static extern bool ReplayRenderer_SetIDRenderingEvents(IntPtr real, UInt32 frameID, UInt32 startEventID, UInt32 endEventID);
+        [DllImport("renderdoc.dll", CharSet = CharSet.Unicode, CallingConvention = CallingConvention.Cdecl)]
+        private static extern bool ReplayRenderer_SetIDRendering(IntPtr real, bool active, ResourceId shaderID);
+        [DllImport("renderdoc.dll", CharSet = CharSet.Unicode, CallingConvention = CallingConvention.Cdecl)]
+        /* Added by Stephan Richter | END */
+
         private static extern bool ReplayRenderer_GetD3D11PipelineState(IntPtr real, IntPtr mem);
         [DllImport("renderdoc.dll", CharSet = CharSet.Unicode, CallingConvention = CallingConvention.Cdecl)]
         private static extern bool ReplayRenderer_GetGLPipelineState(IntPtr real, IntPtr mem);
@@ -243,6 +251,12 @@ namespace renderdoc
         [DllImport("renderdoc.dll", CharSet = CharSet.Unicode, CallingConvention = CallingConvention.Cdecl)]
         private static extern bool ReplayRenderer_GetBuffers(IntPtr real, IntPtr outbufs);
         [DllImport("renderdoc.dll", CharSet = CharSet.Unicode, CallingConvention = CallingConvention.Cdecl)]
+
+        /* Added by Stephan Richter | BEGIN */
+        private static extern bool ReplayRenderer_GetPixelShaders(IntPtr real, IntPtr outbufs);
+        [DllImport("renderdoc.dll", CharSet = CharSet.Unicode, CallingConvention = CallingConvention.Cdecl)]
+        /* Added by Stephan Richter | END */
+        
         private static extern bool ReplayRenderer_GetResolve(IntPtr real, UInt64[] callstack, UInt32 callstackLen, IntPtr outtrace);
         [DllImport("renderdoc.dll", CharSet = CharSet.Unicode, CallingConvention = CallingConvention.Cdecl)]
         private static extern IntPtr ReplayRenderer_GetShaderDetails(IntPtr real, ResourceId shader);
@@ -266,6 +280,18 @@ namespace renderdoc
 
         [DllImport("renderdoc.dll", CharSet = CharSet.Unicode, CallingConvention = CallingConvention.Cdecl)]
         private static extern bool ReplayRenderer_SaveTexture(IntPtr real, TextureSave saveData, IntPtr path);
+
+        [DllImport("renderdoc.dll", CharSet = CharSet.Unicode, CallingConvention = CallingConvention.Cdecl)]
+
+        /* Added by Stephan Richter | BEGIN */
+        private static extern bool ReplayRenderer_HashTexture(IntPtr real, TextureSave saveData, IntPtr path);
+        
+        [DllImport("renderdoc.dll", CharSet = CharSet.Unicode, CallingConvention = CallingConvention.Cdecl)]
+        private static extern bool ReplayRenderer_HashBufferData(IntPtr real, ResourceId buff, IntPtr path);
+        
+        [DllImport("renderdoc.dll", CharSet = CharSet.Unicode, CallingConvention = CallingConvention.Cdecl)]
+        private static extern bool ReplayRenderer_HashShader(IntPtr real, ResourceId buff, IntPtr path);
+        /* Added by Stephan Richter | END */
 
         [DllImport("renderdoc.dll", CharSet = CharSet.Unicode, CallingConvention = CallingConvention.Cdecl)]
         private static extern bool ReplayRenderer_GetPostVSData(IntPtr real, UInt32 instID, MeshDataStage stage, IntPtr outdata);
@@ -329,6 +355,13 @@ namespace renderdoc
         { return ReplayRenderer_SetContextFilter(m_Real, id, firstDefEv, lastDefEv); }
         public bool SetFrameEvent(UInt32 frameID, UInt32 eventID)
         { return ReplayRenderer_SetFrameEvent(m_Real, frameID, eventID); }
+
+        /* Added by Stephan Richter | BEGIN */
+        public void SetIDRenderingEvents(UInt32 frameID, UInt32 startEvent, UInt32 endEvent)
+        { ReplayRenderer_SetIDRenderingEvents(m_Real, frameID, startEvent, endEvent); }
+        public void SetIDRendering(bool active, ResourceId shaderID)
+        { ReplayRenderer_SetIDRendering(m_Real, active, shaderID); }
+        /* Added by Stephan Richter | END */
 
         public GLPipelineState GetGLPipelineState()
         {
@@ -583,6 +616,24 @@ namespace renderdoc
             return ret;
         }
 
+        /* Added by Stephan Richter | BEGIN */
+        public FetchShader[] GetShaders()
+        {
+            IntPtr mem = CustomMarshal.Alloc(typeof(templated_array));
+
+            bool success = ReplayRenderer_GetPixelShaders(m_Real, mem);
+
+            FetchShader[] ret = null;
+
+            if (success)
+                ret = (FetchShader[])CustomMarshal.GetTemplatedArray(mem, typeof(FetchShader), true);
+
+            CustomMarshal.Free(mem);
+
+            return ret;
+        }
+        /* Added by Stephan Richter | END */
+
         public string[] GetResolve(UInt64[] callstack)
         {
             IntPtr mem = CustomMarshal.Alloc(typeof(templated_array));
@@ -735,6 +786,35 @@ namespace renderdoc
 
             return ret;
         }
+
+        /* Added by Stephan Richter | BEGIN */
+        public bool HashTexture(TextureSave saveData, string path)
+        {
+            IntPtr path_mem = CustomMarshal.MakeUTF8String(path);
+
+            bool ret = ReplayRenderer_HashTexture(m_Real, saveData, path_mem);
+
+            CustomMarshal.Free(path_mem);
+
+            return ret;
+        }
+
+        public bool HashBuffer(ResourceId buff, string path)
+        {
+            IntPtr path_mem = CustomMarshal.MakeUTF8String(path);
+            bool success = ReplayRenderer_HashBufferData(m_Real, buff, path_mem);
+            CustomMarshal.Free(path_mem);
+            return success;
+        }
+
+        public bool HashShader(ResourceId buff, string path)
+        {
+            IntPtr path_mem = CustomMarshal.MakeUTF8String(path);
+            bool success = ReplayRenderer_HashShader(m_Real, buff, path_mem);
+            CustomMarshal.Free(path_mem);
+            return success;
+        }
+        /* Added by Stephan Richter | END */
 
         public MeshFormat GetPostVSData(UInt32 instID, MeshDataStage stage)
         {

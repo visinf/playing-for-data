@@ -269,6 +269,9 @@ private:
 
 	vector<FetchFrameRecord> m_FrameRecord;
 	const FetchDrawcall *GetDrawcall(const FetchDrawcall *draw, uint32_t eventID);
+	
+	
+		
 public:
 	static const int AllocPoolCount = 4;
 	ALLOCATE_WITH_WRAPPED_POOL(WrappedID3D11Device, AllocPoolCount);
@@ -331,6 +334,11 @@ public:
 	void ProcessChunk(uint64_t offset, D3D11ChunkType context);
 	void SetContextFilter(ResourceId id, uint32_t firstDefEv, uint32_t lastDefEv);
 	void ReplayLog(uint32_t frameID, uint32_t startEventID, uint32_t endEventID, ReplayLogType replayType);
+	
+	/* Added by Stephan Richter | BEGIN */
+	void SetIDRenderEvents(uint32_t frameID, uint32_t startEvent, uint32_t endEvent);
+	void SetIDRendering(bool active, ResourceId shaderID);
+	/* Added by Stephan Richter | END */
 	
 	////////////////////////////////////////////////////////////////
 	// 'fake' interfaces

@@ -1313,7 +1313,9 @@ namespace renderdocui.Windows
                 live.Close();
             }
 
-            SaveLayout(0);
+            /* Removed by Stephan Richter | BEGIN */
+            //SaveLayout(0);
+            /* Removed by Stephan Richter | END */
 
             m_Core.Shutdown();
         }

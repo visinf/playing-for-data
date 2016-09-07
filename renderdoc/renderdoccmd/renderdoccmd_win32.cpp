@@ -606,7 +606,21 @@ int WINAPI wWinMain(_In_ HINSTANCE hInst,
 		wpathmatch.resize(wcslen(wpathmatch.c_str()));
 		
 		CaptureOptions cmdopts;
-		readCapOpts(argv[4], &cmdopts);
+		/* Added by Stephan Richter | BEGIN */
+		cmdopts.AllowFullscreen = false;
+		cmdopts.AllowVSync = true;
+		cmdopts.CaptureAllCmdLists = false;
+		cmdopts.CaptureCallstacks = false;
+		cmdopts.CaptureCallstacksOnlyDraws = false;
+		cmdopts.DebugDeviceMode = false;
+		cmdopts.DebugOutputMute = false;
+		cmdopts.DelayForDebugger = 0;
+		cmdopts.HookIntoChildren = true;
+		cmdopts.RefAllResources = false;
+		cmdopts.SaveAllInitials = true;
+		cmdopts.VerifyMapWrites = true;
+		//readCapOpts(argv[4], &cmdopts);
+		/* Added by Stephan Richter | END */
 
 		// make sure the user doesn't accidentally run this with 'a' as a parameter or something.
 		// "a.exe" is over 4 characters so this limit should not be a problem.

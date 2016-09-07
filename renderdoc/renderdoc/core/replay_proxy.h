@@ -39,6 +39,11 @@ enum CommandPacketType
 	eCommand_GetTexture,
 	eCommand_GetBuffers,
 	eCommand_GetBuffer,
+
+	/* Added by Stephan Richter | BEGIN */
+	eCommand_GetShaders,
+	/* Added by Stephan Richter | END */
+
 	eCommand_GetShader,
 	eCommand_GetDebugMessages,
 
@@ -48,6 +53,11 @@ enum CommandPacketType
 	eCommand_SavePipelineState,
 	eCommand_GetUsage,
 	eCommand_GetLiveID,
+
+	/* Added by Stephan Richter | BEGIN */
+	eCommand_GetOriginalID,
+	/* Added by Stephan Richter | END */
+
 	eCommand_GetFrameRecord,
 
 	eCommand_FreeResource,
@@ -314,10 +324,19 @@ class ProxySerialiser : public IReplayDriver, Callstack::StackResolver
 			return ResourceId();
 		}
 
+		/* Added by Stephan Richter | BEGIN */
+		void SetIDRendering(bool active, ResourceId shaderID) {}
+		void SetIDRenderingEvents(uint32_t frameID, uint32_t startEvent, uint32_t endEvent) {}
+		/* Added by Stephan Richter | END */
+
 		bool Tick();
 
 		vector<ResourceId> GetBuffers();
 		FetchBuffer GetBuffer(ResourceId id);
+
+		/* Added by Stephan Richter | BEGIN */
+		vector<ResourceId> GetPixelShaders();
+		/* Added by Stephan Richter | END */
 
 		vector<ResourceId> GetTextures();
 		FetchTexture GetTexture(ResourceId id);
@@ -339,6 +358,9 @@ class ProxySerialiser : public IReplayDriver, Callstack::StackResolver
 		bool IsRenderOutput(ResourceId id);
 		
 		ResourceId GetLiveID(ResourceId id);
+		/* Added by Stephan Richter | BEGIN */
+		ResourceId GetOriginalID(ResourceId id);
+		/* Added by Stephan Richter | END */
 		
 		vector<uint32_t> EnumerateCounters();
 		void DescribeCounter(uint32_t counterID, CounterDescription &desc);
@@ -349,6 +371,10 @@ class ProxySerialiser : public IReplayDriver, Callstack::StackResolver
 		vector<byte> GetBufferData(ResourceId buff, uint32_t offset, uint32_t len);
 		byte *GetTextureData(ResourceId tex, uint32_t arrayIdx, uint32_t mip, bool resolve, bool forceRGBA8unorm, float blackPoint, float whitePoint, size_t &dataSize);
 		
+		/* Added by Stephan Richter | BEGIN */
+		vector<byte> GetShaderData(ResourceId buff);
+		/* Added by Stephan Richter | END */
+
 		void InitPostVSBuffers(uint32_t frameID, uint32_t eventID);
 		MeshFormat GetPostVSBuffers(uint32_t frameID, uint32_t eventID, uint32_t instID, MeshDataStage stage);
 		
