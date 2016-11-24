@@ -557,7 +557,7 @@ namespace renderdocui.Windows.Dialogs
 
         public void OnScriptExecuted()
         {
-            m_Core.AppWindow.Close();
+            //m_Core.AppWindow.Close();
         }
         #endregion
 
