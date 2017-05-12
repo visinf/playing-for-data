@@ -1,5 +1,15 @@
+# Disclaimer (Before you begin capturing) #
+
+This is our modification of an now outdated version of renderdoc. renderdoc evolves, but we do not integrate these changes into our version.
+
+* We added functions that are not available in plain renderdoc. Running our scripts against a version from the regular renderdoc repository will not work.
+* Bugs you find in our version should not be reported to the official renderdoc repository as they may have been fixed already. (except they also occur in the regular renderdoc version independent of using our code).
+* Do not ask for help in capturing commercial games on the renderdoc forums.
+* If you need features from more recent renderdoc releases, you will need to modify renderdoc on your own.
+
 RenderDoc
 ==============
+
 
 Welcome to RenderDoc - a graphics debugger, currently available for D3D11 and OpenGL development on windows. 
 
@@ -8,7 +18,7 @@ Quick Links:
 * **Downloads**: https://renderdoc.org/builds
 * **Documentation**: renderdoc.chm in the build, or http://docs.renderdoc.org/
 * **Tutorials**: There are some video tutorials on Youtube: http://www.youtube.com/user/baldurkarlsson/
-* **Email contact**: baldurk@baldurk.org
+* **Email contact**: stephan.richter@visinf.tu-darmstadt.de (for everything related to data capturing from games using this code), baldurk@baldurk.org (for renderdoc issues concerning the main renderdoc branch)
 * **IRC channel**: #renderdoc on freenode
 * **Roadmap/future development**: [Roadmap](https://github.com/baldurk/renderdoc/wiki/Roadmap)
 * **Starting place for developing/contributing**: [CONTRIBUTING.md](CONTRIBUTING.md)
@@ -67,4 +77,3 @@ Contributing & Development
 --------------
 
 I've added some notes on how to contribute, as well as where to get started looking through the code in [COMPILE.md](COMPILE.md) - check there for more details on how to set up to build renderdoc and where to start contributing to its development.
-
