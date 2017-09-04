@@ -120,7 +120,7 @@ Annotating the data
    * <frame>_mesh.txt     |  resource ID to hash list
    * <frame>_shader.txt   |  resource ID to hash list
    * <frame>_buffer.png   |  where buffer is one of *meshID*, *texID*, *shaderID*. images created from the ID buffers. The ID buffers are 24-bit floats encoded into 3 uint8 channels. You can decode them via
-   `img = imread(<frame>__<buffer>.png); id = img(:,:,1) + 256 * (img(:,:,2) + 256 * img(:,:,3)));`
+   `img = double(imread(<frame>__<buffer>.png)); id = img(:,:,1) + 256 * (img(:,:,2) + 256 * img(:,:,3)));`
 for each buffer. The Matlab script requires a <frame>__id.mat, which simply holds these ID buffers.  
 
 * The resource ID to hash lists have the format `%d,%08x.%08x\n`
