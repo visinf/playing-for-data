@@ -6,8 +6,6 @@ This source code release accompanies the paper
 **Playing for Data: Ground Truth from Computer Games**  
 Stephan Richter, Vibhav Vineet, Stefan Roth and Vladlen Koltun. In ECCV 2016.  
 
-Clone via `git clone --recursive https://bitbucket.org/visinf/projects-2016-playing-for-data ./playing-for-data`.
-
 
 Website
 -------------------------------------------------------------------------------
